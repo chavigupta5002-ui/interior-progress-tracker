@@ -6,6 +6,8 @@ import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { Properties } from './pages/Properties'
 import { PropertyDetail } from './pages/PropertyDetail'
+import { PropertyScope } from './pages/PropertyScope'
+import { PropertyUpdates } from './pages/PropertyUpdates'
 import { Reports } from './pages/Reports'
 import { Admin } from './pages/Admin'
 
@@ -31,6 +33,22 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <PropertyDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/properties/:propertyId/scope"
+              element={
+                <ProtectedRoute>
+                  <PropertyScope />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/properties/:propertyId/updates"
+              element={
+                <ProtectedRoute>
+                  <PropertyUpdates />
                 </ProtectedRoute>
               }
             />

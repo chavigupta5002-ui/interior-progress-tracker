@@ -246,7 +246,7 @@ export function ScopeChecklist({ propertyId, propertyName }: { propertyId: strin
             const headerPoints = pointsByHeader.get(header.id) ?? []
             const headerWeight = totalPoints === 0 ? 0 : (headerPoints.length / totalPoints) * 100
             return (
-              <details key={header.id} className="scope-header" open>
+              <details key={header.id} className="scope-header">
                 <summary>
                   <span className="scope-header-title">{header.title}</span>
                   <span className="scope-header-weight">

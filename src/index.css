@@ -364,6 +364,38 @@ textarea {
   font-size: 0.78rem;
 }
 
+/* ---------- Property hub navigation cards ---------- */
+
+.property-nav-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.property-nav-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px;
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.property-nav-card:hover {
+  border-color: var(--color-primary);
+}
+
+.property-nav-card:active {
+  transform: scale(0.98);
+}
+
 /* ---------- Upload form ---------- */
 
 .upload-form h2 {
@@ -964,6 +996,10 @@ textarea {
 
   .page-header {
     flex-direction: column;
+  }
+
+  .property-nav-grid {
+    grid-template-columns: 1fr;
   }
 
   .timeline-entry {

@@ -90,6 +90,15 @@ export function DownloadIcon(props: IconProps) {
   )
 }
 
+export function ChecklistIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="M4 6l1.2 1.2L7.5 5M4 12l1.2 1.2L7.5 11M4 18l1.2 1.2L7.5 17" />
+    </svg>
+  )
+}
+
 export function EditIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>
