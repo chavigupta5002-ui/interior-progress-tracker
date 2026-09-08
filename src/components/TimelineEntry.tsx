@@ -17,7 +17,7 @@ function formatTimestamp(iso: string) {
 }
 
 export function TimelineEntry({ entry }: { entry: Entry }) {
-  const photoUrls = entry.photo_paths.map(
+  const photoUrls = (entry.photo_paths ?? []).map(
     (path) => supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path).data.publicUrl
   )
 
