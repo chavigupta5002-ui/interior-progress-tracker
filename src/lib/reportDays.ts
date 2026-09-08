@@ -62,7 +62,9 @@ export interface DayReport {
   notes: DayNote[]
 }
 
-// dateKeys need not be sorted or de-duplicated by the caller.
+// dateKeys need not be sorted or de-duplicated by the caller. Days come
+// out most-recent-first (reverse chronological), matching the property
+// timeline's newest-first order.
 export function buildDayReports(
   dateKeys: string[],
   entries: Entry[],
@@ -70,7 +72,7 @@ export function buildDayReports(
   points: ScopePoint[],
   photoUrlResolver: (path: string) => string
 ): DayReport[] {
-  const sortedDateKeys = [...new Set(dateKeys)].sort()
+  const sortedDateKeys = [...new Set(dateKeys)].sort().reverse()
   const totalPoints = points.length
   const headerOrder = new Map(headers.map((h, i) => [h.id, i]))
   const orderedHeaders = [...headers].sort((a, b) => a.position - b.position)
