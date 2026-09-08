@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import type { Entry, Property, ScopeHeader, ScopePoint } from '../types'
@@ -7,7 +7,7 @@ import { Carousel } from '../components/Carousel'
 import { ProgressBar } from '../components/ProgressBar'
 import { exportReportToPdf } from '../lib/pdf'
 import { buildDayReports, enumerateDateRange } from '../lib/reportDays'
-import { DownloadIcon } from '../components/Icon'
+import { BackArrowIcon, DownloadIcon } from '../components/Icon'
 
 type DateMode = 'single' | 'range' | 'multiple'
 
@@ -39,6 +39,7 @@ export function Reports() {
   const [hasGenerated, setHasGenerated] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null)
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -85,14 +86,21 @@ export function Reports() {
     if (!propertyId) return
     setLoading(true)
     setHasGenerated(true)
-    const [{ data: entryData }, { data: headerData }, { data: pointData }] = await Promise.all([
+    setGenerateError(null)
+    const [entriesRes, headersRes, pointsRes] = await Promise.all([
       supabase.from('entries').select('*').eq('property_id', propertyId).order('created_at', { ascending: false }),
       supabase.from('scope_headers').select('*').eq('property_id', propertyId).order('position'),
       supabase.from('scope_points').select('*').eq('property_id', propertyId).order('position'),
     ])
-    setAllEntries(entryData ?? [])
-    setScopeHeaders(headerData ?? [])
-    setScopePoints(pointData ?? [])
+    const firstError = entriesRes.error ?? headersRes.error ?? pointsRes.error
+    if (firstError) {
+      setGenerateError(firstError.message)
+      setLoading(false)
+      return
+    }
+    setAllEntries(entriesRes.data ?? [])
+    setScopeHeaders(headersRes.data ?? [])
+    setScopePoints(pointsRes.data ?? [])
     setGeneratedAt(new Date())
     setLoading(false)
   }
@@ -117,6 +125,12 @@ export function Reports() {
 
   return (
     <div className="page">
+      {propertyId && (
+        <Link to={`/properties/${propertyId}`} className="back-link icon-link">
+          <BackArrowIcon width={16} height={16} />
+          Back to property
+        </Link>
+      )}
       <h1>Reports</h1>
 
       <div className="card report-filters">
@@ -204,9 +218,10 @@ export function Reports() {
         <button className="btn btn-primary" onClick={handleGenerate} disabled={!propertyId || loading}>
           {loading ? 'Generating…' : 'Generate report'}
         </button>
+        {generateError && <p className="form-error">{generateError}</p>}
       </div>
 
-      {hasGenerated && (
+      {hasGenerated && !generateError && (
         <div className="report-results">
           <div className="page-header">
             <div>
