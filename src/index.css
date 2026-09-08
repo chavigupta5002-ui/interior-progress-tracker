@@ -1,0 +1,495 @@
+:root {
+  color-scheme: light;
+  --color-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-border: #e2e5ea;
+  --color-text: #1c1f26;
+  --color-text-muted: #626a76;
+  --color-primary: #2f6f4f;
+  --color-primary-dark: #234f38;
+  --color-danger: #b3261e;
+  --radius: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+/* ---------- Layout ---------- */
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.navbar-brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.navbar-links {
+  display: flex;
+  gap: 16px;
+}
+
+.navbar-links a {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.navbar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.navbar-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.role-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.role-badge.role-project_manager {
+  background: #e3f1e8;
+  color: var(--color-primary-dark);
+}
+
+.role-badge.role-viewer {
+  background: #eef0f3;
+  color: var(--color-text-muted);
+}
+
+.app-main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+.page-loading {
+  padding: 40px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.page-header h1,
+.page-header h2 {
+  margin: 0 0 4px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  color: var(--color-text-muted);
+  padding: 24px 0;
+}
+
+/* ---------- Cards & buttons ---------- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.btn-primary:disabled {
+  background: #a9c3b3;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-border);
+}
+
+.btn-toggle {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.btn-toggle.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+/* ---------- Forms ---------- */
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 14px;
+  color: var(--color-text);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  width: 100%;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.form-error {
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  margin: -4px 0 12px;
+}
+
+.form-info {
+  color: var(--color-primary-dark);
+  font-size: 0.85rem;
+  margin: -4px 0 12px;
+}
+
+.form-inline {
+  display: flex;
+  flex-direction: column;
+}
+
+.role-fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.role-fieldset legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.role-option {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  margin-bottom: 8px;
+}
+
+.role-option input {
+  width: auto;
+}
+
+/* ---------- Auth pages ---------- */
+
+.auth-page {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 28px;
+}
+
+.auth-card h1 {
+  margin-top: 0;
+}
+
+.auth-subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: -8px;
+  margin-bottom: 18px;
+}
+
+.auth-switch {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin-top: 8px;
+}
+
+/* ---------- Properties ---------- */
+
+.property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.property-card {
+  color: var(--color-text);
+  display: block;
+}
+
+.property-card h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.property-description {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 8px;
+}
+
+.property-meta {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+/* ---------- Upload form ---------- */
+
+.upload-form h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.file-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  overflow: hidden;
+  margin-bottom: 14px;
+  background: var(--color-bg);
+}
+
+.file-drop input[type='file'] {
+  display: none;
+}
+
+.file-preview {
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+}
+
+/* ---------- Timeline ---------- */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.timeline-entry {
+  padding: 0;
+  overflow: hidden;
+}
+
+.timeline-photo {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  display: block;
+  background: #eee;
+}
+
+.timeline-body {
+  padding: 14px 16px;
+}
+
+.timeline-note {
+  white-space: pre-wrap;
+  margin: 0 0 10px;
+}
+
+.timeline-meta {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+/* ---------- Reports ---------- */
+
+.report-filters {
+  display: flex;
+  flex-direction: column;
+}
+
+.range-inputs {
+  display: flex;
+  gap: 12px;
+}
+
+.range-inputs label {
+  flex: 1;
+}
+
+.multi-date-row {
+  display: flex;
+  gap: 8px;
+}
+
+.multi-date-row input {
+  flex: 1;
+}
+
+.date-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 6px 4px 12px;
+  font-size: 0.85rem;
+}
+
+.date-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 6px;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 480px) {
+  .navbar {
+    padding: 10px 14px;
+  }
+
+  .navbar-name {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .app-main {
+    padding: 14px 12px 48px;
+  }
+
+  .auth-card {
+    padding: 20px;
+  }
+
+  .range-inputs {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .page-header {
+    flex-direction: column;
+  }
+}
