@@ -23,6 +23,7 @@ create policy "Profiles are readable by any authenticated user"
 -- Signup can only ever create 'viewer' profiles; project_manager/admin
 -- must be granted afterwards by an existing admin.
 drop policy if exists "Users can insert their own profile" on public.profiles;
+drop policy if exists "Users can insert their own profile as viewer" on public.profiles;
 create policy "Users can insert their own profile as viewer"
   on public.profiles for insert
   to authenticated
@@ -31,6 +32,7 @@ create policy "Users can insert their own profile as viewer"
 -- Users can edit their own display_name etc, but not their own role
 -- (prevents self-promotion via a direct table update).
 drop policy if exists "Users can update their own profile" on public.profiles;
+drop policy if exists "Users can update their own profile except role" on public.profiles;
 create policy "Users can update their own profile except role"
   on public.profiles for update
   to authenticated
@@ -125,6 +127,7 @@ create policy "Admins and property owners can revoke access"
 --    select policy can reference it).
 -- ============================================================
 drop policy if exists "Properties are readable by any authenticated user" on public.properties;
+drop policy if exists "Properties readable by admins, PMs, and granted viewers" on public.properties;
 create policy "Properties readable by admins, PMs, and granted viewers"
   on public.properties for select
   to authenticated
@@ -140,6 +143,7 @@ create policy "Properties readable by admins, PMs, and granted viewers"
   );
 
 drop policy if exists "Project managers can create properties" on public.properties;
+drop policy if exists "Admins and project managers can create properties" on public.properties;
 create policy "Admins and project managers can create properties"
   on public.properties for insert
   to authenticated
@@ -171,6 +175,7 @@ alter table public.entries enable row level security;
 -- Same visibility rule as properties: admins/PMs see everything,
 -- viewers only see entries under properties they've been granted.
 drop policy if exists "Entries are readable by any authenticated user" on public.entries;
+drop policy if exists "Entries readable by admins, PMs, and granted viewers" on public.entries;
 create policy "Entries readable by admins, PMs, and granted viewers"
   on public.entries for select
   to authenticated
@@ -186,6 +191,7 @@ create policy "Entries readable by admins, PMs, and granted viewers"
   );
 
 drop policy if exists "Project managers can create entries" on public.entries;
+drop policy if exists "Admins and project managers can create entries" on public.entries;
 create policy "Admins and project managers can create entries"
   on public.entries for insert
   to authenticated
@@ -237,6 +243,7 @@ create policy "Public can read progress photos"
 
 -- Only admins and project managers can upload photos.
 drop policy if exists "Project managers can upload progress photos" on storage.objects;
+drop policy if exists "Admins and project managers can upload progress photos" on storage.objects;
 create policy "Admins and project managers can upload progress photos"
   on storage.objects for insert
   to authenticated
