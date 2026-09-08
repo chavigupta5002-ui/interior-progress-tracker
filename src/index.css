@@ -57,26 +57,9 @@ button {
 
 .navbar-brand {
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1.3rem;
   color: var(--color-text);
   white-space: nowrap;
-}
-
-.navbar-links {
-  display: flex;
-  gap: 16px;
-}
-
-.navbar-links a {
-  color: var(--color-text-muted);
-  font-weight: 500;
-}
-
-.navbar-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: auto;
 }
 
 .navbar-name {
@@ -85,6 +68,93 @@ button {
   gap: 8px;
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+.hamburger-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+
+.hamburger-btn:hover {
+  background: var(--color-surface-muted);
+}
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 150;
+}
+
+.hamburger-menu {
+  position: fixed;
+  top: 64px;
+  right: 12px;
+  z-index: 151;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hamburger-menu-brand {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.hamburger-menu-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hamburger-menu-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.hamburger-menu-links a {
+  color: var(--color-text);
+  font-weight: 500;
+  padding: 8px 4px;
+  border-radius: 6px;
+}
+
+.hamburger-menu-links a:hover {
+  background: var(--color-surface-muted);
+}
+
+.hamburger-signout {
+  justify-content: center;
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0;
 }
 
 .role-badge {

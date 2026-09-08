@@ -90,6 +90,14 @@ export function DownloadIcon(props: IconProps) {
   )
 }
 
+export function HamburgerIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  )
+}
+
 export function ChecklistIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>
