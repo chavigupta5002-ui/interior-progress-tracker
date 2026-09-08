@@ -1,35 +1,34 @@
--- Interior Progress Tracker — Supabase schema
--- Run this once in your Supabase project's SQL editor (Project -> SQL Editor -> New query).
--- Safe to re-run: uses IF NOT EXISTS / CREATE OR REPLACE where possible.
+-- Migration: per-property viewer access + admin-only role promotion.
+-- Run this in your Supabase project's SQL editor if you already ran
+-- supabase/schema.sql (which previously let any authenticated user see
+-- every property and let users pick their own role at signup).
+-- Safe to re-run.
 
 -- ============================================================
--- 1. Profiles (role + display name, one row per auth user)
+-- 1. Add an 'admin' role. Admins can promote/demote users and manage
+--    access to any property. project_managers keep their existing
+--    powers (create properties, post entries) but cannot change roles.
 -- ============================================================
-create table if not exists public.profiles (
-  id uuid primary key references auth.users (id) on delete cascade,
-  display_name text not null,
-  role text not null check (role in ('admin', 'project_manager', 'viewer')) default 'viewer',
-  created_at timestamptz not null default now()
-);
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles
+  add constraint profiles_role_check check (role in ('admin', 'project_manager', 'viewer'));
 
-alter table public.profiles enable row level security;
-
-drop policy if exists "Profiles are readable by any authenticated user" on public.profiles;
-create policy "Profiles are readable by any authenticated user"
-  on public.profiles for select
-  to authenticated
-  using (true);
-
--- Signup can only ever create 'viewer' profiles; project_manager/admin
--- must be granted afterwards by an existing admin.
+-- ============================================================
+-- 2. Lock down role changes.
+--    - A user can still update their own display_name, but can no
+--      longer change their own role (closes the self-promotion hole:
+--      previously "Users can update their own profile" had no `with
+--      check`, so any signed-in user could set role = 'project_manager'
+--      or 'admin' on themselves via a direct table update).
+--    - Signup can now only ever create 'viewer' profiles.
+--    - Only admins can change anyone's role (including their own).
+-- ============================================================
 drop policy if exists "Users can insert their own profile" on public.profiles;
 create policy "Users can insert their own profile as viewer"
   on public.profiles for insert
   to authenticated
   with check (auth.uid() = id and role = 'viewer');
 
--- Users can edit their own display_name etc, but not their own role
--- (prevents self-promotion via a direct table update).
 drop policy if exists "Users can update their own profile" on public.profiles;
 create policy "Users can update their own profile except role"
   on public.profiles for update
@@ -51,29 +50,13 @@ create policy "Admins can update any profile"
     exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
   );
 
--- NOTE: there's no bootstrap admin yet. After running this schema, sign
--- up normally (you'll get 'viewer'), then promote yourself from the
--- Supabase SQL editor (which bypasses RLS):
+-- NOTE: this policy set has no bootstrap admin yet. After running this
+-- migration, promote your first admin manually from the Supabase table
+-- editor (or SQL editor, which bypasses RLS):
 --   update public.profiles set role = 'admin' where id = '<your-user-id>';
 
 -- ============================================================
--- 2. Properties / projects (e.g. "Kitchen Reno", "Office Fit-out")
--- ============================================================
-create table if not exists public.properties (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  description text,
-  created_by uuid not null references public.profiles (id),
-  created_at timestamptz not null default now()
-);
-
-alter table public.properties enable row level security;
-
--- ============================================================
 -- 3. Per-property viewer access.
---    Admins and project managers can always see every property.
---    Viewers can only see properties they've been explicitly granted
---    access to via a row in this table.
 -- ============================================================
 create table if not exists public.property_access (
   property_id uuid not null references public.properties (id) on delete cascade,
@@ -94,8 +77,6 @@ create policy "Property access is readable by any authenticated user"
   to authenticated
   using (true);
 
--- Only admins, or the project manager who created the property, can
--- grant/revoke a viewer's access to it.
 drop policy if exists "Admins and property owners can grant access" on public.property_access;
 create policy "Admins and property owners can grant access"
   on public.property_access for insert
@@ -121,8 +102,9 @@ create policy "Admins and property owners can revoke access"
   );
 
 -- ============================================================
--- 4. Properties policies (defined after property_access so the
---    select policy can reference it).
+-- 4. Scope properties/entries visibility: admins and project_managers
+--    still see everything; viewers only see properties (and their
+--    entries) they've been explicitly granted access to.
 -- ============================================================
 drop policy if exists "Properties are readable by any authenticated user" on public.properties;
 create policy "Properties readable by admins, PMs, and granted viewers"
@@ -150,26 +132,6 @@ create policy "Admins and project managers can create properties"
     )
   );
 
--- ============================================================
--- 5. Entries (a photo + note posted to a property's timeline)
--- ============================================================
-create table if not exists public.entries (
-  id uuid primary key default gen_random_uuid(),
-  property_id uuid not null references public.properties (id) on delete cascade,
-  photo_paths text[] not null default '{}',
-  note text not null default '',
-  created_by uuid not null references public.profiles (id),
-  uploader_name text not null,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists entries_property_id_created_at_idx
-  on public.entries (property_id, created_at desc);
-
-alter table public.entries enable row level security;
-
--- Same visibility rule as properties: admins/PMs see everything,
--- viewers only see entries under properties they've been granted.
 drop policy if exists "Entries are readable by any authenticated user" on public.entries;
 create policy "Entries readable by admins, PMs, and granted viewers"
   on public.entries for select
@@ -197,45 +159,9 @@ create policy "Admins and project managers can create entries"
     and created_by = auth.uid()
   );
 
--- Allow the uploader to edit/delete their own entries (optional, handy for typo fixes).
-drop policy if exists "Uploaders can update their own entries" on public.entries;
-create policy "Uploaders can update their own entries"
-  on public.entries for update
-  to authenticated
-  using (created_by = auth.uid());
-
-drop policy if exists "Uploaders can delete their own entries" on public.entries;
-create policy "Uploaders can delete their own entries"
-  on public.entries for delete
-  to authenticated
-  using (created_by = auth.uid());
-
 -- ============================================================
--- 6. Realtime: make sure entries broadcasts inserts to subscribers
+-- 5. Storage: allow admins to upload too (project managers already could).
 -- ============================================================
-alter publication supabase_realtime add table public.entries;
-
--- ============================================================
--- 7. Storage bucket for photos
--- ============================================================
-insert into storage.buckets (id, name, public)
-values ('progress-photos', 'progress-photos', true)
-on conflict (id) do nothing;
-
--- Anyone authenticated can view photos (bucket is also public for simple <img> access).
-drop policy if exists "Authenticated users can read progress photos" on storage.objects;
-create policy "Authenticated users can read progress photos"
-  on storage.objects for select
-  to authenticated
-  using (bucket_id = 'progress-photos');
-
-drop policy if exists "Public can read progress photos" on storage.objects;
-create policy "Public can read progress photos"
-  on storage.objects for select
-  to public
-  using (bucket_id = 'progress-photos');
-
--- Only admins and project managers can upload photos.
 drop policy if exists "Project managers can upload progress photos" on storage.objects;
 create policy "Admins and project managers can upload progress photos"
   on storage.objects for insert
@@ -247,9 +173,3 @@ create policy "Admins and project managers can upload progress photos"
       where p.id = auth.uid() and p.role in ('admin', 'project_manager')
     )
   );
-
-drop policy if exists "Uploaders can delete their own progress photos" on storage.objects;
-create policy "Uploaders can delete their own progress photos"
-  on storage.objects for delete
-  to authenticated
-  using (bucket_id = 'progress-photos' and owner = auth.uid());

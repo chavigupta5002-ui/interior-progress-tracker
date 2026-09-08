@@ -1,4 +1,4 @@
-export type Role = 'project_manager' | 'viewer'
+export type Role = 'admin' | 'project_manager' | 'viewer'
 
 export interface Profile {
   id: string
@@ -22,5 +22,12 @@ export interface Entry {
   note: string
   created_by: string
   uploader_name: string
+  created_at: string
+}
+
+export interface PropertyAccess {
+  property_id: string
+  profile_id: string
+  granted_by: string
   created_at: string
 }

@@ -105,6 +105,11 @@ button {
   color: var(--color-text-muted);
 }
 
+.role-badge.role-admin {
+  background: #fdeecb;
+  color: #8a5a00;
+}
+
 .app-main {
   max-width: 860px;
   margin: 0 auto;
@@ -213,6 +218,34 @@ button {
   margin: 8px 0;
 }
 
+/* ---------- Admin ---------- */
+
+.admin-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.admin-row-name {
+  font-weight: 500;
+}
+
+.admin-row-you {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
 /* ---------- Forms ---------- */
 
 label {
@@ -264,31 +297,6 @@ textarea {
 .form-inline {
   display: flex;
   flex-direction: column;
-}
-
-.role-fieldset {
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 14px;
-}
-
-.role-fieldset legend {
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0 4px;
-}
-
-.role-option {
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  font-weight: 400;
-  margin-bottom: 8px;
-}
-
-.role-option input {
-  width: auto;
 }
 
 /* ---------- Auth pages ---------- */

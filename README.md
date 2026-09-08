@@ -109,11 +109,28 @@ src/
 supabase/schema.sql         # full DB schema, RLS policies, storage bucket + policies
 ```
 
+## Roles & access
+
+- New signups always start as `viewer` (enforced by RLS, not just the UI).
+- `project_manager` / `admin` can only be granted by an existing `admin`, by
+  updating the `role` column on `public.profiles`.
+- There's no bootstrap admin out of the box. After running `schema.sql`, sign
+  up normally, then promote yourself from the Supabase SQL editor (which
+  bypasses RLS):
+  ```sql
+  update public.profiles set role = 'admin' where id = '<your-user-id>';
+  ```
+- Viewers only see properties they've been granted access to via
+  `public.property_access`. Admins and project managers grant/revoke that
+  access by inserting/deleting rows in that table (there's no dedicated admin
+  UI yet — use the Supabase table editor, or build one on top of the RLS
+  policies in `supabase/schema.sql`).
+
 ## Notes / follow-ups worth considering
 
-- Signup currently lets the user pick their own role. For a real deployment, restrict
-  "Project Manager" signups (e.g. an invite code, or admin promotion in the
-  `profiles` table) so anyone can't grant themselves upload access.
+- No in-app UI yet for promoting users or granting property access — both are
+  currently done via the Supabase dashboard. Worth building a small admin
+  page on top of the `profiles.role` and `property_access` tables above.
 - Large photo libraries: consider a paginated/infinite-scroll timeline and
   Supabase image transforms if properties accumulate hundreds of photos.
 - Email confirmation is a Supabase project setting — enable it before going live.

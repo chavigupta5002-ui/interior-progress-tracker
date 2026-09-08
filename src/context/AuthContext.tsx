@@ -9,6 +9,7 @@ interface AuthContextValue {
   profile: Profile | null
   loading: boolean
   isProjectManager: boolean
+  isAdmin: boolean
   signUp: (email: string, password: string, displayName: string, role: Role) => Promise<{ error: string | null }>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -95,7 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: session?.user ?? null,
     profile,
     loading,
-    isProjectManager: profile?.role === 'project_manager',
+    // Admins have at least the same upload/manage capabilities as PMs (see RLS policies).
+    isProjectManager: profile?.role === 'project_manager' || profile?.role === 'admin',
+    isAdmin: profile?.role === 'admin',
     signUp,
     signIn,
     signOut,

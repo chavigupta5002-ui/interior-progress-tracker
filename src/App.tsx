@@ -7,6 +7,7 @@ import { Signup } from './pages/Signup'
 import { Properties } from './pages/Properties'
 import { PropertyDetail } from './pages/PropertyDetail'
 import { Reports } from './pages/Reports'
+import { Admin } from './pages/Admin'
 
 export default function App() {
   return (
@@ -38,6 +39,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Reports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <Admin />
                 </ProtectedRoute>
               }
             />

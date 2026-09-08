@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import type { Role } from '../types'
 
 export function Signup() {
   const { signUp } = useAuth()
@@ -10,7 +9,6 @@ export function Signup() {
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<Role>('viewer')
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -21,7 +19,9 @@ export function Signup() {
     setInfo(null)
     setSubmitting(true)
 
-    const { error } = await signUp(email.trim(), password, displayName.trim(), role)
+    // New accounts always start as 'viewer' — an admin grants
+    // project_manager access afterwards (see profiles RLS policies).
+    const { error } = await signUp(email.trim(), password, displayName.trim(), 'viewer')
 
     setSubmitting(false)
     if (error) {
@@ -76,29 +76,10 @@ export function Signup() {
           />
         </label>
 
-        <fieldset className="role-fieldset">
-          <legend>Role</legend>
-          <label className="role-option">
-            <input
-              type="radio"
-              name="role"
-              value="viewer"
-              checked={role === 'viewer'}
-              onChange={() => setRole('viewer')}
-            />
-            Viewer — can view photos, notes and reports
-          </label>
-          <label className="role-option">
-            <input
-              type="radio"
-              name="role"
-              value="project_manager"
-              checked={role === 'project_manager'}
-              onChange={() => setRole('project_manager')}
-            />
-            Project Manager — can upload photos and notes
-          </label>
-        </fieldset>
+        <p className="auth-subtitle">
+          New accounts start as viewers. Ask an admin to grant you project
+          manager access or share properties with you.
+        </p>
 
         {error && <p className="form-error">{error}</p>}
         {info && <p className="form-info">{info}</p>}
