@@ -153,6 +153,14 @@ export async function exportReportToPdf(
 
     // Notes.
     if (day.notes.length > 0) {
+      ensureSpace(16)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(60)
+      doc.text('Notes added by team', margin, y)
+      doc.setFont('helvetica', 'normal')
+      y += 16
+
       for (const note of day.notes) {
         const metaLine = `${note.uploaderName} · ${formatTimestamp(note.createdAt)}`
         const noteLines = doc.splitTextToSize(note.note, contentWidth)

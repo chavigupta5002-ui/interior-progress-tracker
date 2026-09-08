@@ -285,6 +285,7 @@ export function Reports() {
 
                     {day.notes.length > 0 && (
                       <div className="report-day-notes">
+                        <h4 className="report-section-heading">Notes added by team</h4>
                         {day.notes.map((note) => (
                           <div key={note.entryId} className="report-note">
                             <p className="timeline-meta">

@@ -1028,6 +1028,13 @@ textarea {
   margin-top: 12px;
 }
 
+.report-section-heading {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
 .report-note {
   padding-top: 10px;
   border-top: 1px solid var(--color-border);

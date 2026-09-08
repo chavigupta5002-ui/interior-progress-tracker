@@ -8,7 +8,7 @@ import { BackArrowIcon, CameraIcon, ChecklistIcon, ReportIcon, TrashIcon } from 
 export function PropertyDetail() {
   const { propertyId } = useParams<{ propertyId: string }>()
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { isAdmin, isProjectManager } = useAuth()
   const { property, loading } = useProperty(propertyId)
   const [deletingProperty, setDeletingProperty] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -75,16 +75,23 @@ export function PropertyDetail() {
 
           {deleteError && <p className="form-error">{deleteError}</p>}
 
-          <div className="property-nav-grid">
+          {isProjectManager ? (
+            <div className="property-nav-grid">
+              <Link to={`/properties/${property.id}/scope`} className="card property-nav-card">
+                <ChecklistIcon width={28} height={28} />
+                <span>Scope of Work</span>
+              </Link>
+              <Link to={`/properties/${property.id}/updates`} className="card property-nav-card">
+                <CameraIcon width={28} height={28} />
+                <span>Add Updates</span>
+              </Link>
+            </div>
+          ) : (
             <Link to={`/properties/${property.id}/scope`} className="card property-nav-card">
               <ChecklistIcon width={28} height={28} />
               <span>Scope of Work</span>
             </Link>
-            <Link to={`/properties/${property.id}/updates`} className="card property-nav-card">
-              <CameraIcon width={28} height={28} />
-              <span>Add Updates</span>
-            </Link>
-          </div>
+          )}
 
           <Link to={`/reports?propertyId=${property.id}`} className="card property-nav-card">
             <ReportIcon width={28} height={28} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { useProperty } from '../hooks/useProperty'
@@ -57,6 +57,7 @@ export function PropertyUpdates() {
   }, [propertyId])
 
   if (!propertyId) return null
+  if (!isProjectManager) return <Navigate to={`/properties/${propertyId}`} replace />
 
   return (
     <div className="page">
