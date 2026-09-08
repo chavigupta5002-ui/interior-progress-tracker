@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import type { Property } from '../types'
+import { PlusIcon } from '../components/Icon'
 
 export function Properties() {
   const { profile, isProjectManager } = useAuth()
@@ -71,8 +72,15 @@ export function Properties() {
       <div className="page-header">
         <h1>Properties</h1>
         {isProjectManager && (
-          <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New property'}
+          <button className="btn btn-primary btn-icon" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? (
+              'Cancel'
+            ) : (
+              <>
+                <PlusIcon width={16} height={16} />
+                New property
+              </>
+            )}
           </button>
         )}
       </div>

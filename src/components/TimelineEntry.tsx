@@ -1,5 +1,6 @@
 import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
 import type { Entry } from '../types'
+import { Carousel } from './Carousel'
 
 function formatTimestamp(iso: string) {
   const date = new Date(iso)
@@ -16,16 +17,20 @@ function formatTimestamp(iso: string) {
 }
 
 export function TimelineEntry({ entry }: { entry: Entry }) {
-  const { data } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(entry.photo_path)
+  const photoUrls = entry.photo_paths.map(
+    (path) => supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+  )
 
   return (
     <article className="card timeline-entry">
-      <img src={data.publicUrl} alt="Progress update" className="timeline-photo" loading="lazy" />
       <div className="timeline-body">
         <p className="timeline-note">{entry.note}</p>
         <p className="timeline-meta">
           Uploaded by <strong>{entry.uploader_name}</strong> · {formatTimestamp(entry.created_at)}
         </p>
+      </div>
+      <div className="timeline-photos">
+        <Carousel photos={photoUrls} />
       </div>
     </article>
   )

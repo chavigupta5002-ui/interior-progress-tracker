@@ -14,7 +14,13 @@ function formatTimestamp(iso: string) {
   return `${datePart}, ${timePart}`
 }
 
-async function loadImage(url: string): Promise<{ dataUrl: string; width: number; height: number } | null> {
+interface LoadedImage {
+  dataUrl: string
+  width: number
+  height: number
+}
+
+async function loadImage(url: string): Promise<LoadedImage | null> {
   try {
     const res = await fetch(url)
     const blob = await res.blob()
@@ -35,13 +41,17 @@ async function loadImage(url: string): Promise<{ dataUrl: string; width: number;
   }
 }
 
+const PHOTOS_PER_ROW = 3
+const TILE_GAP = 10
+const TILE_HEIGHT = 130
+
 export async function exportEntriesToPdf(property: Property, entries: Entry[], dateLabel: string) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 40
-  const maxImageWidth = pageWidth - margin * 2
-  const maxImageHeight = 260
+  const contentWidth = pageWidth - margin * 2
+  const tileWidth = (contentWidth - TILE_GAP * (PHOTOS_PER_ROW - 1)) / PHOTOS_PER_ROW
 
   doc.setFontSize(18)
   doc.text(`${property.name} — Progress Report`, margin, margin)
@@ -59,31 +69,23 @@ export async function exportEntriesToPdf(property: Property, entries: Entry[], d
   }
 
   for (const entry of entries) {
-    const { data } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(entry.photo_path)
-    const image = await loadImage(data.publicUrl)
+    const images = await Promise.all(
+      entry.photo_paths.map((path) => {
+        const { data } = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path)
+        return loadImage(data.publicUrl)
+      })
+    )
+    const loadedImages = images.filter((img): img is LoadedImage => img !== null)
 
-    let imageHeight = 0
-    if (image) {
-      const ratio = Math.min(maxImageWidth / image.width, maxImageHeight / image.height, 1)
-      imageHeight = image.height * ratio
-    }
-
-    const noteLines = doc.splitTextToSize(entry.note || '(no note)', maxImageWidth)
+    const noteLines = doc.splitTextToSize(entry.note || '(no note)', contentWidth)
     const metaLine = `Uploaded by ${entry.uploader_name} · ${formatTimestamp(entry.created_at)}`
-    const neededHeight = imageHeight + 20 + noteLines.length * 14 + 20 + 24
+    const photoRows = Math.ceil(loadedImages.length / PHOTOS_PER_ROW)
+    const photosHeight = photoRows > 0 ? photoRows * TILE_HEIGHT + (photoRows - 1) * TILE_GAP + 14 : 0
+    const neededHeight = 16 + noteLines.length * 14 + 14 + photosHeight + 24
 
     if (y + neededHeight > pageHeight - margin) {
       doc.addPage()
       y = margin
-    }
-
-    if (image) {
-      const ratio = Math.min(maxImageWidth / image.width, maxImageHeight / image.height, 1)
-      const drawWidth = image.width * ratio
-      const drawHeight = image.height * ratio
-      const format = image.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG'
-      doc.addImage(image.dataUrl, format, margin, y, drawWidth, drawHeight)
-      y += drawHeight + 12
     }
 
     doc.setFontSize(10)
@@ -94,7 +96,22 @@ export async function exportEntriesToPdf(property: Property, entries: Entry[], d
     doc.setFontSize(11)
     doc.setTextColor(20)
     doc.text(noteLines, margin, y)
-    y += noteLines.length * 14 + 20
+    y += noteLines.length * 14 + 14
+
+    loadedImages.forEach((image, i) => {
+      const col = i % PHOTOS_PER_ROW
+      const row = Math.floor(i / PHOTOS_PER_ROW)
+      const ratio = Math.min(tileWidth / image.width, TILE_HEIGHT / image.height, 1)
+      const drawWidth = image.width * ratio
+      const drawHeight = image.height * ratio
+      const tileX = margin + col * (tileWidth + TILE_GAP)
+      const tileY = y + row * (TILE_HEIGHT + TILE_GAP)
+      const offsetX = (tileWidth - drawWidth) / 2
+      const format = image.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG'
+      doc.addImage(image.dataUrl, format, tileX + offsetX, tileY, drawWidth, drawHeight)
+    })
+
+    y += photosHeight + 10
 
     doc.setDrawColor(220)
     doc.line(margin, y - 8, pageWidth - margin, y - 8)

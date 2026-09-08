@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { ReportIcon, SignOutIcon } from './Icon'
 
 export function Navbar() {
   const { profile, signOut, session } = useAuth()
@@ -18,7 +19,10 @@ export function Navbar() {
       {session && (
         <nav className="navbar-links">
           <Link to="/">Properties</Link>
-          <Link to="/reports">Reports</Link>
+          <Link to="/reports" className="icon-link">
+            <ReportIcon width={16} height={16} />
+            Reports
+          </Link>
         </nav>
       )}
       <div className="navbar-user">
@@ -30,7 +34,8 @@ export function Navbar() {
                 {profile.role === 'project_manager' ? 'Project Manager' : 'Viewer'}
               </span>
             </span>
-            <button className="btn btn-ghost" onClick={handleSignOut}>
+            <button className="btn btn-ghost btn-icon" onClick={handleSignOut}>
+              <SignOutIcon width={16} height={16} />
               Sign out
             </button>
           </>

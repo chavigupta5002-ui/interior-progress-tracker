@@ -31,6 +31,13 @@ date-filtered PDF report.
 Only users whose `profiles.role = 'project_manager'` can insert properties, entries,
 or storage objects — Viewers are read-only at the database level, not just in the UI.
 
+**Already ran `schema.sql` before?** Entries now store multiple photos per update
+(`photo_paths text[]` instead of a single `photo_path`). Run
+[`supabase/migrations/002_multi_photo_entries.sql`](supabase/migrations/002_multi_photo_entries.sql)
+in the SQL Editor to migrate an existing database — it backfills existing photos into
+the array column and drops the old one. Fresh installs following the steps below
+already get the array column from `schema.sql` directly.
+
 ## 2. Configure environment variables
 
 ```bash
@@ -65,10 +72,14 @@ roles manually via the `profiles` table (or build an admin screen).
 - **Timeline**: `src/pages/PropertyDetail.tsx` loads a property's entries and opens a
   Supabase Realtime channel (`postgres_changes` on `entries` filtered by
   `property_id`) so new uploads from any device appear instantly without a refresh.
-- **Uploads**: `src/components/PhotoUploadForm.tsx` uploads the photo to the
-  `progress-photos` Storage bucket, then inserts a row into `entries` with the note,
-  `created_by`, and `uploader_name` (the display name captured at signup) —
-  `created_at` is stamped automatically by Postgres.
+- **Uploads**: `src/components/PhotoUploadForm.tsx` lets a Project Manager attach
+  multiple photos to one update. Each photo uploads to the `progress-photos`
+  Storage bucket, then a single row is inserted into `entries` with the note,
+  `photo_paths` array, `created_by`, and `uploader_name` (the display name captured
+  at signup) — `created_at` is stamped automatically by Postgres. Each entry renders
+  as a small thumbnail carousel (`src/components/Carousel.tsx`); tapping a thumbnail
+  opens a fullscreen lightbox (`src/components/Lightbox.tsx`) with swipe/arrow
+  navigation between that entry's photos.
 - **Reports**: `src/pages/Reports.tsx` lets either role pick a property and a single
   day, a date range, or several individual days, then renders the matching entries
   and can export them to a PDF (`src/lib/pdf.ts`) with photos, notes, timestamps, and

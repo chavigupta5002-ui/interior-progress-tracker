@@ -18,7 +18,7 @@ export interface Property {
 export interface Entry {
   id: string
   property_id: string
-  photo_path: string
+  photo_paths: string[]
   note: string
   created_by: string
   uploader_name: string

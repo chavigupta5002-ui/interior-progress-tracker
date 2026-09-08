@@ -68,7 +68,7 @@ create policy "Project managers can create properties"
 create table if not exists public.entries (
   id uuid primary key default gen_random_uuid(),
   property_id uuid not null references public.properties (id) on delete cascade,
-  photo_path text not null,
+  photo_paths text[] not null default '{}',
   note text not null default '',
   created_by uuid not null references public.profiles (id),
   uploader_name text not null,

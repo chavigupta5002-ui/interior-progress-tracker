@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import type { Entry, Property } from '../types'
 import { TimelineEntry } from '../components/TimelineEntry'
 import { exportEntriesToPdf } from '../lib/pdf'
+import { DownloadIcon } from '../components/Icon'
 
 type DateMode = 'single' | 'range' | 'multiple'
 
@@ -200,10 +201,11 @@ export function Reports() {
               <p className="property-description">{dateLabel()}</p>
             </div>
             <button
-              className="btn btn-primary"
+              className="btn btn-primary btn-icon"
               onClick={handleExportPdf}
               disabled={exporting || filteredEntries.length === 0}
             >
+              <DownloadIcon width={16} height={16} />
               {exporting ? 'Exporting…' : 'Export as PDF'}
             </button>
           </div>

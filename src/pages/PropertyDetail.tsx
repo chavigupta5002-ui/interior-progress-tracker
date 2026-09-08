@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import type { Entry, Property } from '../types'
 import { PhotoUploadForm } from '../components/PhotoUploadForm'
 import { TimelineEntry } from '../components/TimelineEntry'
+import { BackArrowIcon, ReportIcon } from '../components/Icon'
 
 export function PropertyDetail() {
   const { propertyId } = useParams<{ propertyId: string }>()
@@ -63,8 +64,9 @@ export function PropertyDetail() {
 
   return (
     <div className="page">
-      <Link to="/" className="back-link">
-        ← All properties
+      <Link to="/" className="back-link icon-link">
+        <BackArrowIcon width={16} height={16} />
+        All properties
       </Link>
 
       {loading ? (
@@ -78,7 +80,8 @@ export function PropertyDetail() {
               <h1>{property.name}</h1>
               {property.description && <p className="property-description">{property.description}</p>}
             </div>
-            <Link to={`/reports?propertyId=${property.id}`} className="btn btn-ghost">
+            <Link to={`/reports?propertyId=${property.id}`} className="btn btn-ghost btn-icon">
+              <ReportIcon width={16} height={16} />
               View report
             </Link>
           </div>
