@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import type { Entry, Property } from '../types'
 import { PhotoUploadForm } from '../components/PhotoUploadForm'
 import { TimelineEntry } from '../components/TimelineEntry'
-import { BackArrowIcon, ReportIcon } from '../components/Icon'
+import { BackArrowIcon, ReportIcon, TrashIcon } from '../components/Icon'
 
 export function PropertyDetail() {
   const { propertyId } = useParams<{ propertyId: string }>()
-  const { isProjectManager } = useAuth()
+  const navigate = useNavigate()
+  const { isProjectManager, isAdmin } = useAuth()
   const [property, setProperty] = useState<Property | null>(null)
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
+  const [deletingProperty, setDeletingProperty] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!propertyId) return
@@ -60,6 +63,30 @@ export function PropertyDetail() {
     }
   }, [propertyId])
 
+  async function handleDeleteProperty() {
+    if (!property) return
+    const ok = window.confirm(
+      `Delete "${property.name}" and all ${entries.length} of its ${entries.length === 1 ? 'entry' : 'entries'}? This cannot be undone.`
+    )
+    if (!ok) return
+    setDeletingProperty(true)
+    setDeleteError(null)
+
+    const { error } = await supabase.from('properties').delete().eq('id', property.id)
+    if (error) {
+      setDeleteError(error.message)
+      setDeletingProperty(false)
+      return
+    }
+
+    const allPhotoPaths = entries.flatMap((e) => e.photo_paths ?? [])
+    if (allPhotoPaths.length > 0) {
+      await supabase.storage.from(PHOTOS_BUCKET).remove(allPhotoPaths)
+    }
+
+    navigate('/')
+  }
+
   if (!propertyId) return null
 
   return (
@@ -80,11 +107,26 @@ export function PropertyDetail() {
               <h1>{property.name}</h1>
               {property.description && <p className="property-description">{property.description}</p>}
             </div>
-            <Link to={`/reports?propertyId=${property.id}`} className="btn btn-ghost btn-icon">
-              <ReportIcon width={16} height={16} />
-              View report
-            </Link>
+            <div className="page-header-actions">
+              <Link to={`/reports?propertyId=${property.id}`} className="btn btn-ghost btn-icon">
+                <ReportIcon width={16} height={16} />
+                View report
+              </Link>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-icon btn-danger"
+                  onClick={handleDeleteProperty}
+                  disabled={deletingProperty}
+                >
+                  <TrashIcon width={16} height={16} />
+                  {deletingProperty ? 'Deleting…' : 'Delete property'}
+                </button>
+              )}
+            </div>
           </div>
+
+          {deleteError && <p className="form-error">{deleteError}</p>}
 
           {isProjectManager && <PhotoUploadForm propertyId={property.id} />}
 
@@ -92,7 +134,16 @@ export function PropertyDetail() {
             {entries.length === 0 ? (
               <p className="empty-state">No updates yet.</p>
             ) : (
-              entries.map((entry) => <TimelineEntry key={entry.id} entry={entry} />)
+              entries.map((entry) => (
+                <TimelineEntry
+                  key={entry.id}
+                  entry={entry}
+                  onUpdated={(updated) =>
+                    setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)))
+                  }
+                  onDeleted={(id) => setEntries((prev) => prev.filter((e) => e.id !== id))}
+                />
+              ))
             )}
           </div>
         </>

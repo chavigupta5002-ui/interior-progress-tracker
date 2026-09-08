@@ -89,3 +89,20 @@ export function DownloadIcon(props: IconProps) {
     </svg>
   )
 }
+
+export function EditIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 7h16M9 7V4h6v3M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  )
+}

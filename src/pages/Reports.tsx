@@ -215,7 +215,14 @@ export function Reports() {
           ) : (
             <div className="timeline">
               {filteredEntries.map((entry) => (
-                <TimelineEntry key={entry.id} entry={entry} />
+                <TimelineEntry
+                  key={entry.id}
+                  entry={entry}
+                  onUpdated={(updated) =>
+                    setAllEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)))
+                  }
+                  onDeleted={(id) => setAllEntries((prev) => prev.filter((e) => e.id !== id))}
+                />
               ))}
             </div>
           )}

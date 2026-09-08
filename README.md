@@ -28,15 +28,22 @@ date-filtered PDF report.
    - the `progress-photos` Storage bucket + storage policies
    - adds `entries` to the `supabase_realtime` publication for live updates
 
-Only users whose `profiles.role = 'project_manager'` can insert properties, entries,
-or storage objects — Viewers are read-only at the database level, not just in the UI.
+Only users whose `profiles.role` is `admin` or `project_manager` can insert properties,
+entries, or storage objects — Viewers are read-only at the database level (and further
+scoped to properties they've been granted access to), not just in the UI. Admins can
+also edit/delete any entry and delete a property outright; project managers can only
+edit/delete entries they uploaded. See [Roles & access](#roles--access) below.
 
-**Already ran `schema.sql` before?** Entries now store multiple photos per update
-(`photo_paths text[]` instead of a single `photo_path`). Run
-[`supabase/migrations/002_multi_photo_entries.sql`](supabase/migrations/002_multi_photo_entries.sql)
-in the SQL Editor to migrate an existing database — it backfills existing photos into
-the array column and drops the old one. Fresh installs following the steps below
-already get the array column from `schema.sql` directly.
+**Already ran `schema.sql` before?** Run these migrations, in order, against an
+existing database (fresh installs following the steps below already get all of this
+from `schema.sql` directly):
+- [`supabase/migrations/002_multi_photo_entries.sql`](supabase/migrations/002_multi_photo_entries.sql)
+  — entries store multiple photos per update (`photo_paths text[]` instead of a single
+  `photo_path`); backfills existing photos into the array column and drops the old one.
+- [`supabase/migrations/003_property_access_and_admin.sql`](supabase/migrations/003_property_access_and_admin.sql)
+  — adds the `admin` role and per-property viewer access.
+- [`supabase/migrations/004_admin_entry_and_property_delete.sql`](supabase/migrations/004_admin_entry_and_property_delete.sql)
+  — lets admins edit/delete any entry and delete a property (with its entries).
 
 ## 2. Configure environment variables
 

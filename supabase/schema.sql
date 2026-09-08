@@ -154,6 +154,17 @@ create policy "Admins and project managers can create properties"
     )
   );
 
+-- Deleting a property cascades to its entries and property_access rows
+-- (see their foreign keys); admins still need to clean up storage files
+-- separately since those aren't tracked by a foreign key.
+drop policy if exists "Admins can delete properties" on public.properties;
+create policy "Admins can delete properties"
+  on public.properties for delete
+  to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
 -- ============================================================
 -- 5. Entries (a photo + note posted to a property's timeline)
 -- ============================================================
@@ -216,6 +227,23 @@ create policy "Uploaders can delete their own entries"
   to authenticated
   using (created_by = auth.uid());
 
+-- Admins can update/delete any entry, regardless of uploader.
+drop policy if exists "Admins can update any entry" on public.entries;
+create policy "Admins can update any entry"
+  on public.entries for update
+  to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+drop policy if exists "Admins can delete any entry" on public.entries;
+create policy "Admins can delete any entry"
+  on public.entries for delete
+  to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
 -- ============================================================
 -- 6. Realtime: make sure entries broadcasts inserts to subscribers
 -- ============================================================
@@ -260,3 +288,14 @@ create policy "Uploaders can delete their own progress photos"
   on storage.objects for delete
   to authenticated
   using (bucket_id = 'progress-photos' and owner = auth.uid());
+
+-- Admins can delete any progress photo, not just ones they uploaded
+-- (needed when deleting someone else's entry or an entire property).
+drop policy if exists "Admins can delete any progress photo" on storage.objects;
+create policy "Admins can delete any progress photo"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'progress-photos'
+    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  );

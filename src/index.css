@@ -445,6 +445,7 @@ textarea {
 
 .timeline-entry {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   align-items: flex-start;
 }
@@ -468,6 +469,38 @@ textarea {
   color: var(--color-text-muted);
   font-size: 0.82rem;
   margin: 0;
+}
+
+.timeline-actions {
+  flex-basis: 100%;
+  display: flex;
+  gap: 8px;
+}
+
+.timeline-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.timeline-edit textarea {
+  margin: 0;
+}
+
+.timeline-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.page-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-danger {
+  color: var(--color-danger);
 }
 
 /* ---------- Carousel & Lightbox ---------- */
