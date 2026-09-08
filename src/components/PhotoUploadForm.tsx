@@ -13,8 +13,11 @@ export function PhotoUploadForm({ propertyId }: { propertyId: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [photos, setPhotos] = useState<PendingPhoto[]>([])
   const [note, setNote] = useState('')
+  const [showInReport, setShowInReport] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+
+  const canSubmit = photos.length > 0 || note.trim().length > 0
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? [])
@@ -30,12 +33,13 @@ export function PhotoUploadForm({ propertyId }: { propertyId: string }) {
   function resetForm() {
     setPhotos([])
     setNote('')
+    setShowInReport(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!profile || photos.length === 0) return
+    if (!profile || !canSubmit) return
     setError(null)
     setUploading(true)
 
@@ -55,6 +59,7 @@ export function PhotoUploadForm({ propertyId }: { propertyId: string }) {
         property_id: propertyId,
         photo_paths: photoPaths,
         note: note.trim(),
+        show_in_report: showInReport,
         created_by: profile.id,
         uploader_name: profile.display_name,
       })
@@ -106,9 +111,8 @@ export function PhotoUploadForm({ propertyId }: { propertyId: string }) {
       </label>
 
       <label>
-        Note — what's done, what's pending
+        Notes
         <textarea
-          required
           rows={3}
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -116,9 +120,14 @@ export function PhotoUploadForm({ propertyId }: { propertyId: string }) {
         />
       </label>
 
+      <label className="checkbox-label">
+        <input type="checkbox" checked={showInReport} onChange={(e) => setShowInReport(e.target.checked)} />
+        Show this note in report
+      </label>
+
       {error && <p className="form-error">{error}</p>}
 
-      <button className="btn btn-primary" type="submit" disabled={uploading || photos.length === 0}>
+      <button className="btn btn-primary" type="submit" disabled={uploading || !canSubmit}>
         {uploading ? 'Uploading…' : 'Post update'}
       </button>
     </form>

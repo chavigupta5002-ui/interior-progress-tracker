@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
-import type { Entry, Property } from '../types'
-import { TimelineEntry } from '../components/TimelineEntry'
-import { exportEntriesToPdf } from '../lib/pdf'
+import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
+import { useAuth } from '../context/AuthContext'
+import type { Entry, Property, ScopeHeader, ScopePoint } from '../types'
+import { Carousel } from '../components/Carousel'
+import { ProgressBar } from '../components/ProgressBar'
+import { exportReportToPdf } from '../lib/pdf'
+import { buildDayReports, enumerateDateRange } from '../lib/reportDays'
 import { DownloadIcon } from '../components/Icon'
 
 type DateMode = 'single' | 'range' | 'multiple'
 
-function toDateKey(iso: string) {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+function formatTimestamp(iso: string) {
+  const date = new Date(iso)
+  const datePart = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const timePart = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  return `${datePart}, ${timePart}`
 }
 
 export function Reports() {
+  const { profile } = useAuth()
   const [searchParams] = useSearchParams()
   const preselectedPropertyId = searchParams.get('propertyId')
 
@@ -27,9 +33,12 @@ export function Reports() {
   const [multiDates, setMultiDates] = useState<string[]>([])
 
   const [allEntries, setAllEntries] = useState<Entry[]>([])
+  const [scopeHeaders, setScopeHeaders] = useState<ScopeHeader[]>([])
+  const [scopePoints, setScopePoints] = useState<ScopePoint[]>([])
   const [loading, setLoading] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [generatedAt, setGeneratedAt] = useState<Date | null>(null)
 
   useEffect(() => {
     supabase
@@ -45,23 +54,22 @@ export function Reports() {
 
   const selectedProperty = properties.find((p) => p.id === propertyId) ?? null
 
-  const filteredEntries = useMemo(() => {
-    if (!hasGenerated) return []
-    if (mode === 'single') {
-      if (!singleDate) return []
-      return allEntries.filter((e) => toDateKey(e.created_at) === singleDate)
-    }
-    if (mode === 'range') {
-      if (!rangeStart || !rangeEnd) return []
-      return allEntries.filter((e) => {
-        const key = toDateKey(e.created_at)
-        return key >= rangeStart && key <= rangeEnd
-      })
-    }
-    if (multiDates.length === 0) return []
-    const set = new Set(multiDates)
-    return allEntries.filter((e) => set.has(toDateKey(e.created_at)))
-  }, [hasGenerated, mode, singleDate, rangeStart, rangeEnd, multiDates, allEntries])
+  const dateKeys = useMemo(() => {
+    if (mode === 'single') return singleDate ? [singleDate] : []
+    if (mode === 'range') return rangeStart && rangeEnd && rangeStart <= rangeEnd ? enumerateDateRange(rangeStart, rangeEnd) : []
+    return multiDates
+  }, [mode, singleDate, rangeStart, rangeEnd, multiDates])
+
+  const dayReports = useMemo(() => {
+    if (!hasGenerated || dateKeys.length === 0) return []
+    return buildDayReports(
+      dateKeys,
+      allEntries,
+      scopeHeaders,
+      scopePoints,
+      (path) => supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path).data.publicUrl
+    )
+  }, [hasGenerated, dateKeys, allEntries, scopeHeaders, scopePoints])
 
   function addMultiDate() {
     if (!multiInput) return
@@ -77,26 +85,31 @@ export function Reports() {
     if (!propertyId) return
     setLoading(true)
     setHasGenerated(true)
-    const { data } = await supabase
-      .from('entries')
-      .select('*')
-      .eq('property_id', propertyId)
-      .order('created_at', { ascending: false })
-    setAllEntries(data ?? [])
+    const [{ data: entryData }, { data: headerData }, { data: pointData }] = await Promise.all([
+      supabase.from('entries').select('*').eq('property_id', propertyId).order('created_at', { ascending: false }),
+      supabase.from('scope_headers').select('*').eq('property_id', propertyId).order('position'),
+      supabase.from('scope_points').select('*').eq('property_id', propertyId).order('position'),
+    ])
+    setAllEntries(entryData ?? [])
+    setScopeHeaders(headerData ?? [])
+    setScopePoints(pointData ?? [])
+    setGeneratedAt(new Date())
     setLoading(false)
   }
 
-  function dateLabel() {
+  function dateSummary() {
     if (mode === 'single') return singleDate ? `Date: ${singleDate}` : 'No date selected'
     if (mode === 'range') return rangeStart && rangeEnd ? `From ${rangeStart} to ${rangeEnd}` : 'No range selected'
     return multiDates.length ? `Dates: ${multiDates.join(', ')}` : 'No dates selected'
   }
 
+  const generatedByName = profile?.display_name ?? 'Unknown'
+
   async function handleExportPdf() {
-    if (!selectedProperty) return
+    if (!selectedProperty || !generatedAt) return
     setExporting(true)
     try {
-      await exportEntriesToPdf(selectedProperty, filteredEntries, dateLabel())
+      await exportReportToPdf(selectedProperty, dayReports, generatedByName, generatedAt)
     } finally {
       setExporting(false)
     }
@@ -198,32 +211,80 @@ export function Reports() {
           <div className="page-header">
             <div>
               <h2>{selectedProperty?.name}</h2>
-              <p className="property-description">{dateLabel()}</p>
+              <p className="property-description">{dateSummary()}</p>
+              {generatedAt && (
+                <p className="property-meta">
+                  Generated {generatedAt.toLocaleString()} by {generatedByName}
+                </p>
+              )}
             </div>
             <button
               className="btn btn-primary btn-icon"
               onClick={handleExportPdf}
-              disabled={exporting || filteredEntries.length === 0}
+              disabled={exporting || dayReports.length === 0}
             >
               <DownloadIcon width={16} height={16} />
               {exporting ? 'Exporting…' : 'Export as PDF'}
             </button>
           </div>
 
-          {filteredEntries.length === 0 ? (
-            <p className="empty-state">No entries found for the selected date(s).</p>
+          {dayReports.length === 0 ? (
+            <p className="empty-state">No days found for the selected date(s).</p>
           ) : (
-            <div className="timeline">
-              {filteredEntries.map((entry) => (
-                <TimelineEntry
-                  key={entry.id}
-                  entry={entry}
-                  onUpdated={(updated) =>
-                    setAllEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)))
-                  }
-                  onDeleted={(id) => setAllEntries((prev) => prev.filter((e) => e.id !== id))}
-                />
-              ))}
+            <div className="report-days">
+              {dayReports.map((day) => {
+                const isEmpty =
+                  day.checklistSections.length === 0 && day.photoUrls.length === 0 && day.notes.length === 0
+                return (
+                  <div key={day.dateKey} className="card report-day-card">
+                    <h3>{day.dateLabel}</h3>
+                    <ProgressBar percent={day.progressPercent} />
+
+                    {day.checklistSections.length > 0 && (
+                      <div className="report-checklist-sections">
+                        {day.checklistSections.map((section) => (
+                          <details key={section.headerId} className="scope-header">
+                            <summary>
+                              <span className="scope-header-title">{section.headerTitle}</span>
+                              <span className="scope-header-weight">
+                                {section.points.length} completed
+                              </span>
+                            </summary>
+                            <ul className="scope-points">
+                              {section.points.map((point) => (
+                                <li key={point.id} className="scope-point">
+                                  <span className="scope-point-title checked">{point.title}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ))}
+                      </div>
+                    )}
+
+                    {day.photoUrls.length > 0 && (
+                      <div className="report-day-photos">
+                        <Carousel photos={day.photoUrls} />
+                      </div>
+                    )}
+
+                    {day.notes.length > 0 && (
+                      <div className="report-day-notes">
+                        {day.notes.map((note) => (
+                          <div key={note.entryId} className="report-note">
+                            <p className="timeline-meta">
+                              <strong>{note.uploaderName}</strong> · {formatTimestamp(note.createdAt)}
+                            </p>
+                            <p className="timeline-note">{note.note}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {isEmpty && <p className="empty-state">No new activity recorded this day.</p>}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

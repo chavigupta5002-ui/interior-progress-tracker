@@ -24,9 +24,13 @@ date-filtered PDF report.
    [`supabase/schema.sql`](supabase/schema.sql), and run it. This creates:
    - `profiles` (id, display_name, role, created_at) with RLS
    - `properties` (id, name, description, created_by, created_at) with RLS
-   - `entries` (id, property_id, photo_path, note, created_by, uploader_name, created_at) with RLS
+   - `property_access` (per-property viewer grants) with RLS
+   - `scope_headers` / `scope_points` (the Scope of Work checklist) with RLS
+   - `entries` (id, property_id, photo_paths, note, show_in_report, created_by,
+     uploader_name, created_at) with RLS
    - the `progress-photos` Storage bucket + storage policies
-   - adds `entries` to the `supabase_realtime` publication for live updates
+   - adds `entries`, `scope_headers`, and `scope_points` to the `supabase_realtime`
+     publication for live updates
 
 Only users whose `profiles.role` is `admin` or `project_manager` can insert properties,
 entries, or storage objects — Viewers are read-only at the database level (and further
@@ -44,6 +48,11 @@ from `schema.sql` directly):
   — adds the `admin` role and per-property viewer access.
 - [`supabase/migrations/004_admin_entry_and_property_delete.sql`](supabase/migrations/004_admin_entry_and_property_delete.sql)
   — lets admins edit/delete any entry and delete a property (with its entries).
+- [`supabase/migrations/005_scope_of_work.sql`](supabase/migrations/005_scope_of_work.sql)
+  — adds the Scope of Work checklist (`scope_headers` / `scope_points`) that drives the
+  property's progress bar.
+- [`supabase/migrations/006_entries_report_flag.sql`](supabase/migrations/006_entries_report_flag.sql)
+  — adds `entries.show_in_report`, the "Show this note in report" flag.
 
 ## 2. Configure environment variables
 

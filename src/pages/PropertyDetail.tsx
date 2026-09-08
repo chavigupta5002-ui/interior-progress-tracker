@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import type { Entry, Property } from '../types'
 import { PhotoUploadForm } from '../components/PhotoUploadForm'
 import { TimelineEntry } from '../components/TimelineEntry'
+import { ScopeChecklist } from '../components/ScopeChecklist'
 import { BackArrowIcon, ReportIcon, TrashIcon } from '../components/Icon'
 
 export function PropertyDetail() {
@@ -127,6 +128,8 @@ export function PropertyDetail() {
           </div>
 
           {deleteError && <p className="form-error">{deleteError}</p>}
+
+          <ScopeChecklist propertyId={property.id} propertyName={property.name} />
 
           {isProjectManager && <PhotoUploadForm propertyId={property.id} />}
 

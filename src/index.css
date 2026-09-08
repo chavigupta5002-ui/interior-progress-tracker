@@ -1,10 +1,11 @@
 :root {
   color-scheme: light;
-  --color-bg: #f5f6f8;
+  --color-bg: #fddb00;
   --color-surface: #ffffff;
+  --color-surface-muted: #eef0f3;
   --color-border: #e2e5ea;
-  --color-text: #1c1f26;
-  --color-text-muted: #626a76;
+  --color-text: #000000;
+  --color-text-muted: #4d4d4d;
   --color-primary: #2f6f4f;
   --color-primary-dark: #234f38;
   --color-danger: #b3261e;
@@ -200,7 +201,7 @@ button {
 }
 
 .btn-toggle {
-  background: var(--color-bg);
+  background: var(--color-surface-muted);
   border: 1px solid var(--color-border);
   color: var(--color-text-muted);
 }
@@ -381,7 +382,7 @@ textarea {
   cursor: pointer;
   overflow: hidden;
   margin-bottom: 14px;
-  background: var(--color-bg);
+  background: var(--color-surface-muted);
 }
 
 .file-drop input[type='file'] {
@@ -637,7 +638,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--color-bg);
+  background: var(--color-surface-muted);
   border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: 4px 6px 4px 12px;
@@ -652,6 +653,287 @@ textarea {
   font-size: 1rem;
   line-height: 1;
   padding: 2px 6px;
+}
+
+/* ---------- Checkboxes & inline toggles ---------- */
+
+.checkbox-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.checkbox-label input[type='checkbox'] {
+  width: auto;
+}
+
+.report-toggle {
+  margin-top: 8px;
+  margin-bottom: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.report-badge {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  background: #e3f1e8;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* ---------- Progress battery ---------- */
+
+.progress-battery-wrap {
+  margin-bottom: 16px;
+}
+
+.progress-label {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.progress-battery {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress-battery-body {
+  position: relative;
+  flex: 1;
+  height: 28px;
+  border: 2px solid var(--color-text);
+  border-radius: 6px;
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.progress-battery-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  transition: width 0.4s ease, background 0.4s ease;
+}
+
+.progress-battery-text {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.progress-battery-nub {
+  width: 6px;
+  height: 14px;
+  background: var(--color-text);
+  border-radius: 0 3px 3px 0;
+  flex: 0 0 auto;
+}
+
+/* ---------- Scope of Work checklist ---------- */
+
+.scope-checklist h2 {
+  margin-top: 0;
+}
+
+.scope-headers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.scope-header {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.scope-header summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.scope-header summary::-webkit-details-marker {
+  display: none;
+}
+
+.scope-header-title {
+  font-weight: 600;
+  flex: 1;
+}
+
+.scope-header-weight {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.scope-header-delete {
+  padding: 4px;
+}
+
+.scope-points {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scope-point {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scope-point-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.scope-point-label input {
+  width: auto;
+}
+
+.scope-point-title {
+  word-break: break-word;
+}
+
+.scope-point-title.checked {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.scope-point-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  flex-basis: 100%;
+  padding-left: 26px;
+}
+
+.scope-point-delete {
+  padding: 4px;
+}
+
+.scope-add-point-form,
+.scope-add-header-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: flex-start;
+}
+
+.scope-add-point-form input,
+.scope-add-header-form input {
+  flex: 1;
+}
+
+.scope-add-header-form {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+/* ---------- Congratulations modal ---------- */
+
+.congrats-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.congrats-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+
+.congrats-emoji {
+  font-size: 2.5rem;
+  margin-bottom: 8px;
+}
+
+.congrats-card h2 {
+  margin: 0 0 8px;
+}
+
+.congrats-card p {
+  color: var(--color-text-muted);
+  margin: 0 0 20px;
+}
+
+/* ---------- Report day cards ---------- */
+
+.report-days {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-day-card h3 {
+  margin-top: 0;
+}
+
+.report-checklist-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.report-checklist-sections .scope-point-title {
+  text-decoration: none;
+  color: var(--color-text);
+}
+
+.report-day-photos {
+  margin: 12px 0;
+}
+
+.report-day-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.report-note {
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.report-note:first-child {
+  padding-top: 0;
+  border-top: none;
 }
 
 /* ---------- Responsive ---------- */
@@ -695,5 +977,18 @@ textarea {
   .carousel-thumb {
     width: 76px;
     height: 76px;
+  }
+
+  .scope-add-point-form,
+  .scope-add-header-form {
+    flex-direction: column;
+  }
+
+  .scope-header summary {
+    flex-wrap: wrap;
+  }
+
+  .congrats-card {
+    padding: 24px 20px;
   }
 }

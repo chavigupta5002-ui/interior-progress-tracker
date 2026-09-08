@@ -33,6 +33,7 @@ export function TimelineEntry({ entry, onUpdated, onDeleted }: TimelineEntryProp
   const [noteDraft, setNoteDraft] = useState(entry.note)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [togglingReport, setTogglingReport] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const photoUrls = (entry.photo_paths ?? []).map(
@@ -41,7 +42,6 @@ export function TimelineEntry({ entry, onUpdated, onDeleted }: TimelineEntryProp
 
   async function handleSave() {
     const trimmed = noteDraft.trim()
-    if (!trimmed) return
     setSaving(true)
     setError(null)
     const { error: updateError } = await supabase
@@ -82,6 +82,21 @@ export function TimelineEntry({ entry, onUpdated, onDeleted }: TimelineEntryProp
     onDeleted?.(entry.id)
   }
 
+  async function handleToggleShowInReport(next: boolean) {
+    setTogglingReport(true)
+    setError(null)
+    const { error: updateError } = await supabase
+      .from('entries')
+      .update({ show_in_report: next })
+      .eq('id', entry.id)
+    setTogglingReport(false)
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+    onUpdated?.({ ...entry, show_in_report: next })
+  }
+
   return (
     <article className="card timeline-entry">
       <div className="timeline-body">
@@ -95,12 +110,7 @@ export function TimelineEntry({ entry, onUpdated, onDeleted }: TimelineEntryProp
             />
             {error && <p className="form-error">{error}</p>}
             <div className="timeline-edit-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleSave}
-                disabled={saving || !noteDraft.trim()}
-              >
+              <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button type="button" className="btn btn-ghost" onClick={handleCancel} disabled={saving}>
@@ -110,13 +120,26 @@ export function TimelineEntry({ entry, onUpdated, onDeleted }: TimelineEntryProp
           </div>
         ) : (
           <>
-            <p className="timeline-note">{entry.note}</p>
+            {entry.note && <p className="timeline-note">{entry.note}</p>}
             {error && <p className="form-error">{error}</p>}
           </>
         )}
         <p className="timeline-meta">
           Uploaded by <strong>{entry.uploader_name}</strong> · {formatTimestamp(entry.created_at)}
         </p>
+        {isAdmin ? (
+          <label className="checkbox-label report-toggle">
+            <input
+              type="checkbox"
+              checked={entry.show_in_report}
+              disabled={togglingReport}
+              onChange={(e) => handleToggleShowInReport(e.target.checked)}
+            />
+            Show in report
+          </label>
+        ) : (
+          entry.show_in_report && <span className="report-badge">In report</span>
+        )}
       </div>
 
       <div className="timeline-photos">

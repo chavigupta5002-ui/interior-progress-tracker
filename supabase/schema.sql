@@ -154,9 +154,9 @@ create policy "Admins and project managers can create properties"
     )
   );
 
--- Deleting a property cascades to its entries and property_access rows
--- (see their foreign keys); admins still need to clean up storage files
--- separately since those aren't tracked by a foreign key.
+-- Deleting a property cascades to its entries, property_access, and
+-- scope of work rows (see their foreign keys); admins still need to
+-- clean up storage files separately since those aren't FK-tracked.
 drop policy if exists "Admins can delete properties" on public.properties;
 create policy "Admins can delete properties"
   on public.properties for delete
@@ -166,13 +166,151 @@ create policy "Admins can delete properties"
   );
 
 -- ============================================================
--- 5. Entries (a photo + note posted to a property's timeline)
+-- 5. Scope of Work: headers (categories) and their checklist points.
+--    Each point is worth an equal share of 100% based on the total
+--    number of points in the whole scope (not equal per header) — this
+--    weighting is never stored, it's always computed live from the
+--    current point count, so adding new points automatically re-spreads
+--    the 100% across everything with no migration needed. A header's
+--    effective weight is simply the sum of its points' weights.
+-- ============================================================
+create table if not exists public.scope_headers (
+  id uuid primary key default gen_random_uuid(),
+  property_id uuid not null references public.properties (id) on delete cascade,
+  title text not null,
+  position integer not null default 0,
+  created_by uuid not null references public.profiles (id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists scope_headers_property_id_idx on public.scope_headers (property_id);
+
+create table if not exists public.scope_points (
+  id uuid primary key default gen_random_uuid(),
+  header_id uuid not null references public.scope_headers (id) on delete cascade,
+  property_id uuid not null references public.properties (id) on delete cascade,
+  title text not null,
+  position integer not null default 0,
+  checked_by uuid references public.profiles (id),
+  checked_at timestamptz,
+  created_by uuid not null references public.profiles (id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists scope_points_property_id_idx on public.scope_points (property_id);
+create index if not exists scope_points_header_id_idx on public.scope_points (header_id);
+
+alter table public.scope_headers enable row level security;
+alter table public.scope_points enable row level security;
+
+drop policy if exists "Scope headers readable by admins, PMs, and granted viewers" on public.scope_headers;
+create policy "Scope headers readable by admins, PMs, and granted viewers"
+  on public.scope_headers for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+    or exists (
+      select 1 from public.property_access pa
+      where pa.property_id = scope_headers.property_id and pa.profile_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Scope points readable by admins, PMs, and granted viewers" on public.scope_points;
+create policy "Scope points readable by admins, PMs, and granted viewers"
+  on public.scope_points for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+    or exists (
+      select 1 from public.property_access pa
+      where pa.property_id = scope_points.property_id and pa.profile_id = auth.uid()
+    )
+  );
+
+-- Admins and project managers can define and manage the scope of work:
+-- add/remove headers and points, and check/uncheck any point (checking
+-- is a shared team action, not restricted to whoever added the point).
+drop policy if exists "Admins and PMs can create scope headers" on public.scope_headers;
+create policy "Admins and PMs can create scope headers"
+  on public.scope_headers for insert
+  to authenticated
+  with check (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+  );
+
+drop policy if exists "Admins and PMs can update scope headers" on public.scope_headers;
+create policy "Admins and PMs can update scope headers"
+  on public.scope_headers for update
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+  );
+
+drop policy if exists "Admins and PMs can delete scope headers" on public.scope_headers;
+create policy "Admins and PMs can delete scope headers"
+  on public.scope_headers for delete
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+  );
+
+drop policy if exists "Admins and PMs can create scope points" on public.scope_points;
+create policy "Admins and PMs can create scope points"
+  on public.scope_points for insert
+  to authenticated
+  with check (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+  );
+
+drop policy if exists "Admins and PMs can update scope points" on public.scope_points;
+create policy "Admins and PMs can update scope points"
+  on public.scope_points for update
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+  );
+
+drop policy if exists "Admins and PMs can delete scope points" on public.scope_points;
+create policy "Admins and PMs can delete scope points"
+  on public.scope_points for delete
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+  );
+
+-- ============================================================
+-- 6. Entries (a photo + note posted to a property's timeline)
 -- ============================================================
 create table if not exists public.entries (
   id uuid primary key default gen_random_uuid(),
   property_id uuid not null references public.properties (id) on delete cascade,
   photo_paths text[] not null default '{}',
   note text not null default '',
+  show_in_report boolean not null default false,
   created_by uuid not null references public.profiles (id),
   uploader_name text not null,
   created_at timestamptz not null default now()
@@ -214,12 +352,19 @@ create policy "Admins and project managers can create entries"
     and created_by = auth.uid()
   );
 
--- Allow the uploader to edit/delete their own entries (optional, handy for typo fixes).
+-- Allow the uploader to edit/delete their own entries (optional, handy
+-- for typo fixes). show_in_report is excluded from what an uploader can
+-- change post-creation — they can only set it at insert time; only
+-- admins (via the policy below) can flip it afterwards.
 drop policy if exists "Uploaders can update their own entries" on public.entries;
 create policy "Uploaders can update their own entries"
   on public.entries for update
   to authenticated
-  using (created_by = auth.uid());
+  using (created_by = auth.uid())
+  with check (
+    created_by = auth.uid()
+    and show_in_report = (select e.show_in_report from public.entries e where e.id = entries.id)
+  );
 
 drop policy if exists "Uploaders can delete their own entries" on public.entries;
 create policy "Uploaders can delete their own entries"
@@ -227,7 +372,8 @@ create policy "Uploaders can delete their own entries"
   to authenticated
   using (created_by = auth.uid());
 
--- Admins can update/delete any entry, regardless of uploader.
+-- Admins can update/delete any entry, regardless of uploader, with no
+-- column restrictions (so they can flip show_in_report at any time).
 drop policy if exists "Admins can update any entry" on public.entries;
 create policy "Admins can update any entry"
   on public.entries for update
@@ -245,12 +391,33 @@ create policy "Admins can delete any entry"
   );
 
 -- ============================================================
--- 6. Realtime: make sure entries broadcasts inserts to subscribers
+-- 7. Realtime: live updates for entries and the scope of work
+--    checklist. Guarded so this script can be safely re-run.
 -- ============================================================
-alter publication supabase_realtime add table public.entries;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'entries'
+  ) then
+    alter publication supabase_realtime add table public.entries;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'scope_headers'
+  ) then
+    alter publication supabase_realtime add table public.scope_headers;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'scope_points'
+  ) then
+    alter publication supabase_realtime add table public.scope_points;
+  end if;
+end $$;
 
 -- ============================================================
--- 7. Storage bucket for photos
+-- 8. Storage bucket for photos
 -- ============================================================
 insert into storage.buckets (id, name, public)
 values ('progress-photos', 'progress-photos', true)
