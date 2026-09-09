@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { CloseIcon, HamburgerIcon, SignOutIcon } from './Icon'
+import logo from '../assets/logo-navbar.png'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -31,7 +32,7 @@ export function Navbar() {
 
   return (
     <header className="navbar">
-      <span className="navbar-brand">Interior Progress Tracker</span>
+      <img src={logo} alt="Interior Progress Tracker" className="navbar-logo" />
 
       {session && (
         <button
