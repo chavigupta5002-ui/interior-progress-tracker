@@ -59,6 +59,10 @@ from `schema.sql` directly):
 - [`supabase/migrations/008_fix_entries_update_rls_violation.sql`](supabase/migrations/008_fix_entries_update_rls_violation.sql)
   — replaces 007's fix (which could still wrongly reject legitimate edits) with a
   BEFORE UPDATE trigger that enforces the show_in_report lock instead of RLS.
+- [`supabase/migrations/009_reassert_admin_delete_policies.sql`](supabase/migrations/009_reassert_admin_delete_policies.sql)
+  — re-applies the four admin policies from migration 004 (update/delete any entry,
+  delete a property, delete any progress photo). Run this if admin deletes fail with
+  "Nothing was deleted" — it means 004 was never actually applied.
 
 ## 2. Configure environment variables
 
