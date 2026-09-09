@@ -171,9 +171,17 @@ export function ScopeChecklist({ propertyId, propertyName }: { propertyId: strin
     )
     if (!ok) return
     setError(null)
-    const { error: deleteError } = await supabase.from('scope_headers').delete().eq('id', header.id)
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from('scope_headers')
+      .delete()
+      .eq('id', header.id)
+      .select('id')
     if (deleteError) {
       setError(deleteError.message)
+      return
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      setError('Nothing was deleted — you may not have permission to delete this header.')
       return
     }
     setHeaders((prev) => prev.filter((h) => h.id !== header.id))
@@ -205,9 +213,17 @@ export function ScopeChecklist({ propertyId, propertyName }: { propertyId: strin
     const ok = window.confirm(`Delete "${point.title}"? This cannot be undone.`)
     if (!ok) return
     setError(null)
-    const { error: deleteError } = await supabase.from('scope_points').delete().eq('id', point.id)
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from('scope_points')
+      .delete()
+      .eq('id', point.id)
+      .select('id')
     if (deleteError) {
       setError(deleteError.message)
+      return
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      setError('Nothing was deleted — you may not have permission to delete this point.')
       return
     }
     setPoints((prev) => prev.filter((p) => p.id !== point.id))

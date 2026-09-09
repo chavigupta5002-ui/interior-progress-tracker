@@ -106,13 +106,16 @@ export function Admin() {
     if (!propertyId) return
     setSavingAccessId(profileId)
     setAccessError(null)
-    const { error } = await supabase
+    const { data: deletedRows, error } = await supabase
       .from('property_access')
       .delete()
       .eq('property_id', propertyId)
       .eq('profile_id', profileId)
+      .select('profile_id')
     if (error) {
       setAccessError(error.message)
+    } else if (!deletedRows || deletedRows.length === 0) {
+      setAccessError('Nothing was revoked — you may not have permission to change this.')
     } else {
       setAccessProfileIds((prev) => {
         const next = new Set(prev)

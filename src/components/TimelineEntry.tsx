@@ -69,9 +69,18 @@ export function TimelineEntry({ entry, onUpdated, onDeleted }: TimelineEntryProp
     setDeleting(true)
     setError(null)
 
-    const { error: deleteError } = await supabase.from('entries').delete().eq('id', entry.id)
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from('entries')
+      .delete()
+      .eq('id', entry.id)
+      .select('id')
     if (deleteError) {
       setError(deleteError.message)
+      setDeleting(false)
+      return
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      setError('Nothing was deleted — you may not have permission to delete this entry.')
       setDeleting(false)
       return
     }

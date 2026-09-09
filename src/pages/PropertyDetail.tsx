@@ -25,9 +25,20 @@ export function PropertyDetail() {
       .select('photo_paths')
       .eq('property_id', property.id)
 
-    const { error } = await supabase.from('properties').delete().eq('id', property.id)
+    const { data: deletedRows, error } = await supabase
+      .from('properties')
+      .delete()
+      .eq('id', property.id)
+      .select('id')
     if (error) {
       setDeleteError(error.message)
+      setDeletingProperty(false)
+      return
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      setDeleteError(
+        'Nothing was deleted — you may not have permission to delete this property.'
+      )
       setDeletingProperty(false)
       return
     }
