@@ -53,6 +53,9 @@ from `schema.sql` directly):
   property's progress bar.
 - [`supabase/migrations/006_entries_report_flag.sql`](supabase/migrations/006_entries_report_flag.sql)
   — adds `entries.show_in_report`, the "Show this note in report" flag.
+- [`supabase/migrations/007_fix_entries_update_recursion.sql`](supabase/migrations/007_fix_entries_update_recursion.sql)
+  — fixes an "infinite recursion detected in policy for relation 'entries'" error
+  on entries updates (introduced by migration 006's uploader-update policy).
 
 ## 2. Configure environment variables
 

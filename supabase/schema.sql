@@ -356,6 +356,25 @@ create policy "Admins and project managers can create entries"
 -- for typo fixes). show_in_report is excluded from what an uploader can
 -- change post-creation — they can only set it at insert time; only
 -- admins (via the policy below) can flip it afterwards.
+--
+-- The current show_in_report value is looked up through a SECURITY
+-- DEFINER function rather than a plain subquery on entries: entries'
+-- own SELECT policy is correlated (it checks entries.property_id
+-- against property_access), so a raw `select ... from entries where
+-- id = entries.id` inside this policy re-enters RLS on entries and
+-- throws "infinite recursion detected in policy for relation
+-- 'entries'". The function runs with the owner's privileges, so its
+-- internal query bypasses RLS instead of looping back into this policy.
+create or replace function public.entry_show_in_report(p_entry_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select show_in_report from public.entries where id = p_entry_id;
+$$;
+
 drop policy if exists "Uploaders can update their own entries" on public.entries;
 create policy "Uploaders can update their own entries"
   on public.entries for update
@@ -363,7 +382,7 @@ create policy "Uploaders can update their own entries"
   using (created_by = auth.uid())
   with check (
     created_by = auth.uid()
-    and show_in_report = (select e.show_in_report from public.entries e where e.id = entries.id)
+    and show_in_report = public.entry_show_in_report(id)
   );
 
 drop policy if exists "Uploaders can delete their own entries" on public.entries;
