@@ -353,43 +353,54 @@ create policy "Admins and project managers can create entries"
   );
 
 -- Allow the uploader to edit/delete their own entries (optional, handy
--- for typo fixes). show_in_report is excluded from what an uploader can
--- change post-creation — they can only set it at insert time; only
--- admins (via the policy below) can flip it afterwards.
---
--- The current show_in_report value is looked up through a SECURITY
--- DEFINER function rather than a plain subquery on entries: entries'
--- own SELECT policy is correlated (it checks entries.property_id
--- against property_access), so a raw `select ... from entries where
--- id = entries.id` inside this policy re-enters RLS on entries and
--- throws "infinite recursion detected in policy for relation
--- 'entries'". The function runs with the owner's privileges, so its
--- internal query bypasses RLS instead of looping back into this policy.
-create or replace function public.entry_show_in_report(p_entry_id uuid)
-returns boolean
-language sql
-security definer
-set search_path = public
-stable
-as $$
-  select show_in_report from public.entries where id = p_entry_id;
-$$;
-
+-- for typo fixes). Uploaders can otherwise edit their own entry freely,
+-- but show_in_report is locked down separately: a BEFORE UPDATE
+-- trigger (below) blocks anyone but an admin from changing it after
+-- creation, since a bare RLS WITH CHECK that re-queries entries to
+-- compare against the stored value is fragile — it depends on exactly
+-- when Postgres considers that re-query's snapshot to include the
+-- in-flight update, which both risks "infinite recursion detected in
+-- policy for relation 'entries'" (entries' own SELECT policy is
+-- correlated, unlike e.g. profiles' trivial using(true)) and can wrongly
+-- reject edits that never touch show_in_report at all. A trigger gets
+-- NEW/OLD as direct values with no such ambiguity.
 drop policy if exists "Uploaders can update their own entries" on public.entries;
 create policy "Uploaders can update their own entries"
   on public.entries for update
   to authenticated
   using (created_by = auth.uid())
-  with check (
-    created_by = auth.uid()
-    and show_in_report = public.entry_show_in_report(id)
-  );
+  with check (created_by = auth.uid());
 
 drop policy if exists "Uploaders can delete their own entries" on public.entries;
 create policy "Uploaders can delete their own entries"
   on public.entries for delete
   to authenticated
   using (created_by = auth.uid());
+
+-- Enforces the show_in_report lock described above: only admins may
+-- change it once an entry exists.
+drop trigger if exists entries_show_in_report_lock on public.entries;
+
+create or replace function public.enforce_entries_show_in_report_lock()
+returns trigger
+language plpgsql
+as $$
+begin
+  if NEW.show_in_report is distinct from OLD.show_in_report then
+    if not exists (
+      select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'
+    ) then
+      raise exception 'Only admins can change show_in_report after an entry is created';
+    end if;
+  end if;
+  return NEW;
+end;
+$$;
+
+create trigger entries_show_in_report_lock
+  before update on public.entries
+  for each row
+  execute function public.enforce_entries_show_in_report_lock();
 
 -- Admins can update/delete any entry, regardless of uploader, with no
 -- column restrictions (so they can flip show_in_report at any time).

@@ -56,6 +56,9 @@ from `schema.sql` directly):
 - [`supabase/migrations/007_fix_entries_update_recursion.sql`](supabase/migrations/007_fix_entries_update_recursion.sql)
   — fixes an "infinite recursion detected in policy for relation 'entries'" error
   on entries updates (introduced by migration 006's uploader-update policy).
+- [`supabase/migrations/008_fix_entries_update_rls_violation.sql`](supabase/migrations/008_fix_entries_update_rls_violation.sql)
+  — replaces 007's fix (which could still wrongly reject legitimate edits) with a
+  BEFORE UPDATE trigger that enforces the show_in_report lock instead of RLS.
 
 ## 2. Configure environment variables
 
