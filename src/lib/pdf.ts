@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import type { Property } from '../types'
 import type { DayReport } from './reportDays'
 import { progressColorRgb } from './progress'
+import logoUrl from '../assets/logo-navbar.png'
 
 function formatTimestamp(iso: string) {
   const date = new Date(iso)
@@ -59,12 +60,22 @@ export async function exportReportToPdf(
   const contentWidth = pageWidth - margin * 2
   const tileWidth = (contentWidth - TILE_GAP * (PHOTOS_PER_ROW - 1)) / PHOTOS_PER_ROW
 
+  let textX = margin
+  const logo = await loadImage(logoUrl)
+  if (logo) {
+    const logoHeight = 26
+    const logoWidth = (logo.width / logo.height) * logoHeight
+    const format = logo.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG'
+    doc.addImage(logo.dataUrl, format, margin, margin - 16, logoWidth, logoHeight)
+    textX = margin + logoWidth + 14
+  }
+
   doc.setFontSize(18)
   doc.setTextColor(0)
-  doc.text(`${property.name} — Progress Report`, margin, margin)
+  doc.text(`${property.name} — Progress Report`, textX, margin)
   doc.setFontSize(10)
   doc.setTextColor(90)
-  doc.text(`Generated ${generatedAt.toLocaleString()} by ${generatedByName}`, margin, margin + 18)
+  doc.text(`Generated ${generatedAt.toLocaleString()} by ${generatedByName}`, textX, margin + 18)
   doc.setTextColor(0)
 
   let y = margin + 44
