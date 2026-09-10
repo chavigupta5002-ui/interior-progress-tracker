@@ -65,6 +65,7 @@ create table if not exists public.properties (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   description text,
+  property_type text not null default 'hotel' check (property_type in ('homestay', 'hotel')),
   created_by uuid not null references public.profiles (id),
   created_at timestamptz not null default now()
 );

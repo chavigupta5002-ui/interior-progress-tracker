@@ -64,6 +64,9 @@ from `schema.sql` directly):
   — re-applies the four admin policies from migration 004 (update/delete any entry,
   delete a property, delete any progress photo). Run this if admin deletes fail with
   "Nothing was deleted" — it means 004 was never actually applied.
+- [`supabase/migrations/010_property_type.sql`](supabase/migrations/010_property_type.sql)
+  — adds `properties.property_type` (`'homestay'` or `'hotel'`), required when creating
+  a property.
 
 ## 2. Configure environment variables
 

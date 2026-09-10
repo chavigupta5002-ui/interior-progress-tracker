@@ -7,10 +7,13 @@ export interface Profile {
   created_at: string
 }
 
+export type PropertyType = 'homestay' | 'hotel'
+
 export interface Property {
   id: string
   name: string
   description: string | null
+  property_type: PropertyType
   created_by: string
   created_at: string
 }
