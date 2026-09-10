@@ -178,8 +178,8 @@ export async function exportReportToPdf(
           const offsetY = (TILE_HEIGHT - drawHeight) / 2
           const format = image.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG'
           doc.saveGraphicsState()
-          // @ts-expect-error jsPDF's clip typing is loose across versions.
-          doc.rect(tileX, tileY, tileWidth, TILE_HEIGHT, null).clip()
+          // Cast needed since jsPDF's clip() typing is inconsistent across versions.
+          ;(doc.rect(tileX, tileY, tileWidth, TILE_HEIGHT, null) as unknown as { clip: () => void }).clip()
           doc.addImage(image.dataUrl, format, tileX + offsetX, tileY + offsetY, drawWidth, drawHeight)
           doc.restoreGraphicsState()
         })
