@@ -8,6 +8,7 @@ date-filtered PDF report.
 ## Stack
 
 - **Frontend**: React + TypeScript + Vite, React Router
+- **Styling**: Tailwind CSS v4, [lucide-react](https://lucide.dev) icons, Poppins (Google Fonts)
 - **Backend**: Supabase (Postgres + Auth + Storage + Realtime)
 - **PDF export**: jsPDF
 - **Hosting**: Vercel

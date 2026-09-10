@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { useProperty } from '../hooks/useProperty'
 import { ScopeChecklist } from '../components/ScopeChecklist'
-import { BackArrowIcon } from '../components/Icon'
+import { ChevronLeft } from 'lucide-react'
 
 export function PropertyScope() {
   const { propertyId } = useParams<{ propertyId: string }>()
@@ -10,19 +10,22 @@ export function PropertyScope() {
   if (!propertyId) return null
 
   return (
-    <div className="page">
-      <Link to={`/properties/${propertyId}`} className="back-link icon-link">
-        <BackArrowIcon width={16} height={16} />
+    <div>
+      <Link
+        to={`/properties/${propertyId}`}
+        className="mb-5 flex items-center text-xs font-medium text-gray-500 hover:text-gray-800"
+      >
+        <ChevronLeft className="mr-1" size={16} />
         Back to property
       </Link>
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-sm text-gray-500">Loading…</p>
       ) : !property ? (
-        <p>Property not found.</p>
+        <p className="text-sm text-gray-500">Property not found.</p>
       ) : (
         <>
-          <h1>{property.name}</h1>
+          <h1 className="mb-6 text-3xl font-bold text-gray-900">{property.name}</h1>
           <ScopeChecklist propertyId={property.id} propertyName={property.name} />
         </>
       )}

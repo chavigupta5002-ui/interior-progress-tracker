@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import type { Profile, ScopeHeader, ScopePoint } from '../types'
 import { ProgressBar } from './ProgressBar'
 import { CongratsModal } from './CongratsModal'
-import { PlusIcon, TrashIcon } from './Icon'
+import { Check, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { formatPercent } from '../lib/progress'
 
 function formatCheckedMeta(point: ScopePoint, nameById: Map<string, string>) {
@@ -19,6 +19,9 @@ function formatCheckedMeta(point: ScopePoint, nameById: Map<string, string>) {
   })
   return `Checked by ${name} · ${when}`
 }
+
+const inputClass =
+  'h-11 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:ring-4 focus:ring-yellow-100 focus:outline-none'
 
 export function ScopeChecklist({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
   const { profile, isProjectManager } = useAuth()
@@ -244,81 +247,104 @@ export function ScopeChecklist({ propertyId, propertyName }: { propertyId: strin
     }
   }
 
-  if (loading) return <p>Loading scope of work…</p>
+  if (loading) return <p className="text-sm text-gray-500">Loading scope of work…</p>
 
   return (
-    <section className="card scope-checklist">
-      <h2>Scope of Work</h2>
-      <ProgressBar percent={percent} label="Overall progress" />
-      {error && <p className="form-error">{error}</p>}
+    <section>
+      <h2 className="mb-3 text-lg font-semibold text-gray-800">Scope of Work</h2>
 
-      {orderedHeaders.length === 0 ? (
-        <p className="empty-state">
-          {canManage ? 'No checklist yet — add a header to get started.' : 'No scope of work defined yet.'}
-        </p>
-      ) : (
-        <div className="scope-headers">
-          {orderedHeaders.map((header) => {
+      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+        <div className="border-b border-gray-100 p-4">
+          <ProgressBar percent={percent} label="Overall progress" />
+        </div>
+
+        {error && <p className="px-4 pt-3 text-sm text-red-600">{error}</p>}
+
+        {orderedHeaders.length === 0 ? (
+          <p className="p-4 text-sm text-gray-500">
+            {canManage ? 'No checklist yet — add a header to get started.' : 'No scope of work defined yet.'}
+          </p>
+        ) : (
+          orderedHeaders.map((header) => {
             const headerPoints = pointsByHeader.get(header.id) ?? []
             const headerWeight = totalPoints === 0 ? 0 : (headerPoints.length / totalPoints) * 100
             return (
-              <details key={header.id} className="scope-header">
-                <summary>
-                  <span className="scope-header-title">{header.title}</span>
-                  <span className="scope-header-weight">
-                    {formatPercent(headerWeight)}% of total
-                  </span>
-                  {canManage && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-icon btn-danger scope-header-delete"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        handleDeleteHeader(header)
-                      }}
-                      aria-label={`Delete ${header.title}`}
-                    >
-                      <TrashIcon width={14} height={14} />
-                    </button>
-                  )}
+              <details key={header.id} className="group border-b border-gray-100 p-4 last:border-b-0">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <ChevronRight
+                      className="flex-shrink-0 text-gray-400 transition-transform group-open:rotate-90"
+                      size={16}
+                    />
+                    <h3 className="truncate text-base font-semibold text-gray-900">{header.title}</h3>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <span className="text-[11px] font-medium text-gray-500">
+                      {formatPercent(headerWeight)}% of total
+                    </span>
+                    {canManage && (
+                      <button
+                        type="button"
+                        className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          handleDeleteHeader(header)
+                        }}
+                        aria-label={`Delete ${header.title}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </summary>
 
-                <ul className="scope-points">
+                <div className="mt-3 flex flex-col gap-0.5">
                   {headerPoints.map((point) => (
-                    <li key={point.id} className="scope-point">
-                      <label className="scope-point-label">
-                        <input
-                          type="checkbox"
-                          checked={!!point.checked_at}
-                          disabled={!canManage}
-                          onChange={() => handleToggle(point)}
-                        />
-                        <span className={point.checked_at ? 'scope-point-title checked' : 'scope-point-title'}>
-                          {point.title}
+                    <div key={point.id} className="flex items-start gap-1">
+                      <label className="flex flex-1 cursor-pointer items-start gap-3 rounded-lg p-1.5 hover:bg-gray-50">
+                        <span className="relative mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-300 bg-white">
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={!!point.checked_at}
+                            disabled={!canManage}
+                            onChange={() => handleToggle(point)}
+                          />
+                          {point.checked_at && (
+                            <span className="absolute inset-0 flex items-center justify-center rounded bg-emerald-600">
+                              <Check className="text-white" size={12} strokeWidth={3} />
+                            </span>
+                          )}
+                        </span>
+                        <span className="flex flex-col">
+                          <span
+                            className={`text-sm font-medium text-gray-900 ${point.checked_at ? 'line-through opacity-70' : ''}`}
+                          >
+                            {point.title}
+                          </span>
+                          {point.checked_at && (
+                            <span className="mt-0.5 text-[11px] text-gray-400">
+                              {formatCheckedMeta(point, nameById)}
+                            </span>
+                          )}
                         </span>
                       </label>
-                      {point.checked_at && (
-                        <span className="scope-point-meta">{formatCheckedMeta(point, nameById)}</span>
-                      )}
                       {canManage && (
                         <button
                           type="button"
-                          className="btn btn-ghost btn-icon btn-danger scope-point-delete"
+                          className="mt-1.5 rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500"
                           onClick={() => handleDeletePoint(point)}
                           aria-label={`Delete ${point.title}`}
                         >
-                          <TrashIcon width={12} height={12} />
+                          <Trash2 size={12} />
                         </button>
                       )}
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
 
                 {canManage && (
-                  <form
-                    className="scope-add-point-form"
-                    onSubmit={(e) => handleAddPoint(e, header)}
-                  >
+                  <form className="mt-3 flex gap-2" onSubmit={(e) => handleAddPoint(e, header)}>
                     <input
                       type="text"
                       placeholder="Add a checklist point…"
@@ -326,33 +352,39 @@ export function ScopeChecklist({ propertyId, propertyName }: { propertyId: strin
                       onChange={(e) =>
                         setNewPointTitleByHeader((prev) => ({ ...prev, [header.id]: e.target.value }))
                       }
+                      className={inputClass}
                     />
                     <button
                       type="submit"
-                      className="btn btn-ghost btn-icon"
+                      className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                       disabled={addingPointFor === header.id || !(newPointTitleByHeader[header.id] ?? '').trim()}
                     >
-                      <PlusIcon width={14} height={14} />
+                      <Plus size={14} />
                       Add
                     </button>
                   </form>
                 )}
               </details>
             )
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
       {canManage && (
-        <form className="scope-add-header-form" onSubmit={handleAddHeader}>
+        <form className="mt-3 flex gap-2" onSubmit={handleAddHeader}>
           <input
             type="text"
             placeholder="New header, e.g. Electrical"
             value={newHeaderTitle}
             onChange={(e) => setNewHeaderTitle(e.target.value)}
+            className={inputClass}
           />
-          <button type="submit" className="btn btn-primary btn-icon" disabled={addingHeader || !newHeaderTitle.trim()}>
-            <PlusIcon width={14} height={14} />
+          <button
+            type="submit"
+            className="flex items-center gap-1.5 rounded-xl bg-[#FFD700] px-4 text-sm font-semibold text-black shadow-sm hover:bg-yellow-400 focus:ring-4 focus:ring-yellow-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={addingHeader || !newHeaderTitle.trim()}
+          >
+            <Plus size={14} />
             Add header
           </button>
         </form>

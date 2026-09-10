@@ -8,16 +8,16 @@ export function Carousel({ photos }: { photos: string[] }) {
 
   return (
     <>
-      <div className="carousel">
+      <div className="flex gap-2 overflow-x-auto pb-0.5">
         {photos.map((url, i) => (
           <button
             key={url}
             type="button"
-            className="carousel-thumb"
+            className="h-20 w-20 flex-none scroll-ml-2 overflow-hidden rounded-lg border border-gray-100 bg-gray-100"
             onClick={() => setOpenIndex(i)}
             aria-label={`Open photo ${i + 1} of ${photos.length}`}
           >
-            <img src={url} alt="" loading="lazy" />
+            <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
           </button>
         ))}
       </div>

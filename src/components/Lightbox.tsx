@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from './Icon'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 
 interface LightboxProps {
   photos: string[]
@@ -20,46 +20,53 @@ export function Lightbox({ photos, index, onClose, onNavigate }: LightboxProps) 
   }, [index, photos.length, onClose, onNavigate])
 
   return (
-    <div className="lightbox-backdrop" onClick={onClose}>
-      <button className="lightbox-close" onClick={onClose} aria-label="Close">
-        <CloseIcon />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white"
+        onClick={onClose}
+        aria-label="Close"
+      >
+        <X />
       </button>
 
       {photos.length > 1 && (
         <button
-          className="lightbox-nav lightbox-prev"
+          className="absolute top-1/2 left-4 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
           aria-label="Previous photo"
           onClick={(e) => {
             e.stopPropagation()
             onNavigate((index - 1 + photos.length) % photos.length)
           }}
         >
-          <ChevronLeftIcon />
+          <ChevronLeft />
         </button>
       )}
 
       <img
         src={photos[index]}
         alt={`Photo ${index + 1} of ${photos.length}`}
-        className="lightbox-image"
+        className="max-h-[88vh] max-w-[92vw] object-contain"
         onClick={(e) => e.stopPropagation()}
       />
 
       {photos.length > 1 && (
         <button
-          className="lightbox-nav lightbox-next"
+          className="absolute top-1/2 right-4 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
           aria-label="Next photo"
           onClick={(e) => {
             e.stopPropagation()
             onNavigate((index + 1) % photos.length)
           }}
         >
-          <ChevronRightIcon />
+          <ChevronRight />
         </button>
       )}
 
       {photos.length > 1 && (
-        <div className="lightbox-counter">
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
           {index + 1} / {photos.length}
         </div>
       )}

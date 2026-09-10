@@ -1,8 +1,16 @@
 import { jsPDF } from 'jspdf'
 import type { Property } from '../types'
 import type { DayReport } from './reportDays'
-import { progressColorRgb } from './progress'
 import logoUrl from '../assets/logo-navbar.png'
+
+// Tailwind emerald-600, matching the app's "success / active progress" color.
+const EMERALD = { r: 5, g: 150, b: 105 }
+const GRAY_50 = { r: 249, g: 250, b: 251 }
+const GRAY_100 = { r: 243, g: 244, b: 246 }
+const GRAY_900 = { r: 17, g: 24, b: 39 }
+const GRAY_700 = { r: 55, g: 65, b: 81 }
+const GRAY_500 = { r: 107, g: 114, b: 128 }
+const GRAY_400 = { r: 156, g: 163, b: 175 }
 
 function formatTimestamp(iso: string) {
   const date = new Date(iso)
@@ -44,8 +52,10 @@ async function loadImage(url: string): Promise<LoadedImage | null> {
 }
 
 const PHOTOS_PER_ROW = 3
-const TILE_GAP = 10
-const TILE_HEIGHT = 130
+const TILE_GAP = 8
+const TILE_HEIGHT = 120
+const MARGIN = 72 // 1 inch
+const BANNER_HEIGHT = 108 // 1.5 inch
 
 export async function exportReportToPdf(
   property: Property,
@@ -56,65 +66,72 @@ export async function exportReportToPdf(
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 40
-  const contentWidth = pageWidth - margin * 2
+  const contentWidth = pageWidth - MARGIN * 2
   const tileWidth = (contentWidth - TILE_GAP * (PHOTOS_PER_ROW - 1)) / PHOTOS_PER_ROW
 
-  let textX = margin
+  // Compact top banner: logo, property name, export date.
+  doc.setFillColor(GRAY_50.r, GRAY_50.g, GRAY_50.b)
+  doc.rect(0, 0, pageWidth, BANNER_HEIGHT, 'F')
+  doc.setDrawColor(GRAY_100.r, GRAY_100.g, GRAY_100.b)
+  doc.line(0, BANNER_HEIGHT, pageWidth, BANNER_HEIGHT)
+
+  let textX = MARGIN
   const logo = await loadImage(logoUrl)
   if (logo) {
-    const logoHeight = 26
+    const logoHeight = 30
     const logoWidth = (logo.width / logo.height) * logoHeight
     const format = logo.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG'
-    doc.addImage(logo.dataUrl, format, margin, margin - 16, logoWidth, logoHeight)
-    textX = margin + logoWidth + 14
+    doc.addImage(logo.dataUrl, format, MARGIN, (BANNER_HEIGHT - logoHeight) / 2, logoWidth, logoHeight)
+    textX = MARGIN + logoWidth + 16
   }
 
-  doc.setFontSize(18)
-  doc.setTextColor(0)
-  doc.text(`${property.name} — Progress Report`, textX, margin)
-  doc.setFontSize(10)
-  doc.setTextColor(90)
-  doc.text(`Generated ${generatedAt.toLocaleString()} by ${generatedByName}`, textX, margin + 18)
-  doc.setTextColor(0)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(GRAY_900.r, GRAY_900.g, GRAY_900.b)
+  doc.text(property.name, textX, BANNER_HEIGHT / 2 - 4)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(GRAY_500.r, GRAY_500.g, GRAY_500.b)
+  doc.text(`Generated ${generatedAt.toLocaleString()} by ${generatedByName}`, textX, BANNER_HEIGHT / 2 + 14)
 
-  let y = margin + 44
+  let y = BANNER_HEIGHT + 30
 
   function ensureSpace(needed: number) {
-    if (y + needed > pageHeight - margin) {
+    if (y + needed > pageHeight - MARGIN) {
       doc.addPage()
-      y = margin
+      y = MARGIN
     }
   }
 
   if (dayReports.length === 0) {
     doc.setFontSize(12)
-    doc.text('No days found for the selected date(s).', margin, y)
+    doc.setTextColor(GRAY_500.r, GRAY_500.g, GRAY_500.b)
+    doc.text('No days found for the selected date(s).', MARGIN, y)
   }
 
   for (const day of dayReports) {
     ensureSpace(70)
 
-    doc.setFontSize(14)
-    doc.setTextColor(20)
-    doc.text(day.dateLabel, margin, y)
-    y += 20
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.setTextColor(GRAY_900.r, GRAY_900.g, GRAY_900.b)
+    doc.text(day.dateLabel, MARGIN, y)
+    doc.setFont('helvetica', 'normal')
+    y += 18
 
-    // Progress bar, battery-style: outline + colored fill + centered %.
+    // Progress bar: rounded gray track + emerald fill, matching the app UI.
     const barWidth = contentWidth
-    const barHeight = 16
-    doc.setDrawColor(0)
-    doc.setFillColor(240, 240, 240)
-    doc.roundedRect(margin, y, barWidth, barHeight, 4, 4, 'FD')
-    const fillWidth = Math.max(4, (day.progressPercent / 100) * barWidth)
-    const { r, g, b } = progressColorRgb(day.progressPercent)
-    doc.setFillColor(r, g, b)
-    doc.roundedRect(margin, y, fillWidth, barHeight, 4, 4, 'F')
+    const barHeight = 8
+    doc.setFillColor(GRAY_100.r, GRAY_100.g, GRAY_100.b)
+    doc.roundedRect(MARGIN, y, barWidth, barHeight, 4, 4, 'F')
+    const fillWidth = Math.max(6, (day.progressPercent / 100) * barWidth)
+    doc.setFillColor(EMERALD.r, EMERALD.g, EMERALD.b)
+    doc.roundedRect(MARGIN, y, fillWidth, barHeight, 4, 4, 'F')
+    y += barHeight + 8
     doc.setFontSize(9)
-    doc.setTextColor(20)
-    const pctLabel = `${day.progressPercent}%`
-    doc.text(pctLabel, margin + barWidth / 2 - doc.getTextWidth(pctLabel) / 2, y + barHeight - 5)
-    y += barHeight + 18
+    doc.setTextColor(GRAY_700.r, GRAY_700.g, GRAY_700.b)
+    doc.text(`${day.progressPercent}% complete`, MARGIN, y)
+    y += 16
 
     // Checklist — fully expanded in the PDF, no collapsing.
     if (day.checklistSections.length > 0) {
@@ -122,15 +139,17 @@ export async function exportReportToPdf(
         ensureSpace(18)
         doc.setFontSize(11)
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor(20)
-        doc.text(section.headerTitle, margin, y)
+        doc.setTextColor(GRAY_900.r, GRAY_900.g, GRAY_900.b)
+        doc.text(section.headerTitle, MARGIN, y)
         doc.setFont('helvetica', 'normal')
         y += 15
         for (const point of section.points) {
           ensureSpace(14)
           doc.setFontSize(10)
-          doc.setTextColor(60)
-          doc.text(`[x] ${point.title}`, margin + 14, y)
+          doc.setTextColor(EMERALD.r, EMERALD.g, EMERALD.b)
+          doc.text('✓', MARGIN + 4, y)
+          doc.setTextColor(GRAY_700.r, GRAY_700.g, GRAY_700.b)
+          doc.text(point.title, MARGIN + 16, y)
           y += 13
         }
         y += 6
@@ -138,7 +157,7 @@ export async function exportReportToPdf(
       y += 4
     }
 
-    // Photos.
+    // Photos, in a strict grid so tiles stay uniform and never overlap.
     if (day.photoUrls.length > 0) {
       const images = await Promise.all(day.photoUrls.map(loadImage))
       const loadedImages = images.filter((img): img is LoadedImage => img !== null)
@@ -149,14 +168,20 @@ export async function exportReportToPdf(
         loadedImages.forEach((image, i) => {
           const col = i % PHOTOS_PER_ROW
           const row = Math.floor(i / PHOTOS_PER_ROW)
-          const ratio = Math.min(tileWidth / image.width, TILE_HEIGHT / image.height, 1)
-          const drawWidth = image.width * ratio
-          const drawHeight = image.height * ratio
-          const tileX = margin + col * (tileWidth + TILE_GAP)
+          const tileX = MARGIN + col * (tileWidth + TILE_GAP)
           const tileY = y + row * (TILE_HEIGHT + TILE_GAP)
+          // Cover-fit into the tile (uniform aspect ratio, cropped, never overlapping).
+          const coverRatio = Math.max(tileWidth / image.width, TILE_HEIGHT / image.height)
+          const drawWidth = image.width * coverRatio
+          const drawHeight = image.height * coverRatio
           const offsetX = (tileWidth - drawWidth) / 2
+          const offsetY = (TILE_HEIGHT - drawHeight) / 2
           const format = image.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG'
-          doc.addImage(image.dataUrl, format, tileX + offsetX, tileY, drawWidth, drawHeight)
+          doc.saveGraphicsState()
+          // @ts-expect-error jsPDF's clip typing is loose across versions.
+          doc.rect(tileX, tileY, tileWidth, TILE_HEIGHT, null).clip()
+          doc.addImage(image.dataUrl, format, tileX + offsetX, tileY + offsetY, drawWidth, drawHeight)
+          doc.restoreGraphicsState()
         })
         y += photosHeight + 16
       }
@@ -167,8 +192,8 @@ export async function exportReportToPdf(
       ensureSpace(16)
       doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor(60)
-      doc.text('Notes added by team', margin, y)
+      doc.setTextColor(GRAY_700.r, GRAY_700.g, GRAY_700.b)
+      doc.text('Notes added by team', MARGIN, y)
       doc.setFont('helvetica', 'normal')
       y += 16
 
@@ -177,26 +202,26 @@ export async function exportReportToPdf(
         const noteLines = doc.splitTextToSize(note.note, contentWidth)
         ensureSpace(14 + noteLines.length * 14 + 10)
         doc.setFontSize(9)
-        doc.setTextColor(110)
-        doc.text(metaLine, margin, y)
+        doc.setTextColor(GRAY_400.r, GRAY_400.g, GRAY_400.b)
+        doc.text(metaLine, MARGIN, y)
         y += 13
         doc.setFontSize(11)
-        doc.setTextColor(20)
-        doc.text(noteLines, margin, y)
+        doc.setTextColor(GRAY_900.r, GRAY_900.g, GRAY_900.b)
+        doc.text(noteLines, MARGIN, y)
         y += noteLines.length * 14 + 10
       }
     }
 
     if (day.checklistSections.length === 0 && day.photoUrls.length === 0 && day.notes.length === 0) {
       doc.setFontSize(10)
-      doc.setTextColor(140)
-      doc.text('No new activity recorded this day.', margin, y)
+      doc.setTextColor(GRAY_400.r, GRAY_400.g, GRAY_400.b)
+      doc.text('No new activity recorded this day.', MARGIN, y)
       y += 16
     }
 
     y += 10
-    doc.setDrawColor(220)
-    doc.line(margin, y - 6, pageWidth - margin, y - 6)
+    doc.setDrawColor(GRAY_100.r, GRAY_100.g, GRAY_100.b)
+    doc.line(MARGIN, y - 6, pageWidth - MARGIN, y - 6)
     y += 14
   }
 

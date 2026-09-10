@@ -10,6 +10,9 @@ const ROLE_LABELS: Record<Role, string> = {
   viewer: 'Viewer',
 }
 
+const selectClass =
+  'h-10 rounded-lg border border-gray-300 bg-white px-2.5 text-sm text-gray-900 focus:border-transparent focus:ring-4 focus:ring-yellow-100 focus:outline-none disabled:opacity-50'
+
 export function Admin() {
   const { profile, isAdmin } = useAuth()
 
@@ -129,33 +132,37 @@ export function Admin() {
   const selectedProperty = properties.find((p) => p.id === propertyId) ?? null
 
   return (
-    <div className="page">
-      <h1>Admin</h1>
+    <div>
+      <h1 className="mb-5 text-3xl font-bold text-gray-900">Admin</h1>
 
-      <section className="card">
-        <h2>User roles</h2>
-        <p className="property-description">
+      <section className="mb-5 rounded-xl border border-gray-100 bg-white p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+        <h2 className="text-base font-semibold text-gray-900">User roles</h2>
+        <p className="mt-1 mb-3 text-sm text-gray-500">
           Promote a viewer to project manager, or grant/remove admin access.
         </p>
 
-        {usersError && <p className="form-error">{usersError}</p>}
+        {usersError && <p className="mb-3 text-sm text-red-600">{usersError}</p>}
 
         {usersLoading ? (
-          <p>Loading users…</p>
+          <p className="text-sm text-gray-500">Loading users…</p>
         ) : users.length === 0 ? (
-          <p className="empty-state">No users found.</p>
+          <p className="text-sm text-gray-500">No users found.</p>
         ) : (
-          <div className="admin-table">
+          <div className="flex flex-col gap-2">
             {users.map((u) => (
-              <div key={u.id} className="admin-row">
-                <span className="admin-row-name">
+              <div
+                key={u.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2.5"
+              >
+                <span className="text-sm font-medium text-gray-800">
                   {u.display_name}
-                  {u.id === profile?.id && <span className="admin-row-you"> (you)</span>}
+                  {u.id === profile?.id && <span className="font-normal text-gray-400"> (you)</span>}
                 </span>
                 <select
                   value={u.role}
                   disabled={savingUserId === u.id}
                   onChange={(e) => handleRoleChange(u.id, e.target.value as Role)}
+                  className={selectClass}
                 >
                   {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
                     <option key={r} value={r}>
@@ -169,20 +176,24 @@ export function Admin() {
         )}
       </section>
 
-      <section className="card">
-        <h2>Property access</h2>
-        <p className="property-description">
-          Admins and project managers can already see every property. Grant viewers access to a
-          specific property here.
+      <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+        <h2 className="text-base font-semibold text-gray-900">Property access</h2>
+        <p className="mt-1 mb-3 text-sm text-gray-500">
+          Admins and project managers can already see every property. Grant viewers access to a specific
+          property here.
         </p>
 
         {properties.length === 0 ? (
-          <p className="empty-state">No properties yet.</p>
+          <p className="text-sm text-gray-500">No properties yet.</p>
         ) : (
           <>
-            <label>
+            <label className="mb-3 flex flex-col gap-1.5 text-sm font-medium text-gray-700">
               Property
-              <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
+              <select
+                value={propertyId}
+                onChange={(e) => setPropertyId(e.target.value)}
+                className="h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-transparent focus:ring-4 focus:ring-yellow-100 focus:outline-none"
+              >
                 {properties.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -191,22 +202,29 @@ export function Admin() {
               </select>
             </label>
 
-            {accessError && <p className="form-error">{accessError}</p>}
+            {accessError && <p className="mb-3 text-sm text-red-600">{accessError}</p>}
 
             {accessLoading ? (
-              <p>Loading access…</p>
+              <p className="text-sm text-gray-500">Loading access…</p>
             ) : (
-              <div className="admin-table">
+              <div className="flex flex-col gap-2">
                 {users
                   .filter((u) => u.role === 'viewer')
                   .map((u) => {
                     const hasAccess = accessProfileIds.has(u.id)
                     return (
-                      <div key={u.id} className="admin-row">
-                        <span className="admin-row-name">{u.display_name}</span>
+                      <div
+                        key={u.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2.5"
+                      >
+                        <span className="text-sm font-medium text-gray-800">{u.display_name}</span>
                         <button
                           type="button"
-                          className={`btn ${hasAccess ? 'btn-ghost' : 'btn-primary'}`}
+                          className={
+                            hasAccess
+                              ? 'rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50'
+                              : 'rounded-lg bg-[#FFD700] px-3 py-1.5 text-xs font-semibold text-black hover:bg-yellow-400 disabled:opacity-50'
+                          }
                           disabled={savingAccessId === u.id}
                           onClick={() =>
                             hasAccess ? handleRevokeAccess(u.id) : handleGrantAccess(u.id)
@@ -218,15 +236,15 @@ export function Admin() {
                     )
                   })}
                 {users.filter((u) => u.role === 'viewer').length === 0 && (
-                  <p className="empty-state">No viewers to grant access to yet.</p>
+                  <p className="text-sm text-gray-500">No viewers to grant access to yet.</p>
                 )}
               </div>
             )}
 
             {selectedProperty && (
-              <p className="property-meta">
-                {accessProfileIds.size} viewer{accessProfileIds.size === 1 ? '' : 's'} currently
-                have access to {selectedProperty.name}.
+              <p className="mt-3 text-xs text-gray-400">
+                {accessProfileIds.size} viewer{accessProfileIds.size === 1 ? '' : 's'} currently have
+                access to {selectedProperty.name}.
               </p>
             )}
           </>

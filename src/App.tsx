@@ -15,62 +15,64 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Navbar />
-        <main className="app-main">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Properties />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/properties/:propertyId"
-              element={
-                <ProtectedRoute>
-                  <PropertyDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/properties/:propertyId/scope"
-              element={
-                <ProtectedRoute>
-                  <PropertyScope />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/properties/:propertyId/updates"
-              element={
-                <ProtectedRoute>
-                  <PropertyUpdates />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/reports"
-              element={
-                <ProtectedRoute>
-                  <Reports />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute>
-                  <Admin />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
+        <div className="min-h-screen bg-gray-50 font-poppins text-gray-900">
+          <Navbar />
+          <main className="mx-auto max-w-md p-4 pb-10 sm:p-6">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Properties />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/properties/:propertyId"
+                element={
+                  <ProtectedRoute>
+                    <PropertyDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/properties/:propertyId/scope"
+                element={
+                  <ProtectedRoute>
+                    <PropertyScope />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/properties/:propertyId/updates"
+                element={
+                  <ProtectedRoute>
+                    <PropertyUpdates />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute>
+                    <Reports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute>
+                    <Admin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+        </div>
       </AuthProvider>
     </BrowserRouter>
   )

@@ -6,7 +6,7 @@ import { useProperty } from '../hooks/useProperty'
 import type { Entry } from '../types'
 import { PhotoUploadForm } from '../components/PhotoUploadForm'
 import { TimelineEntry } from '../components/TimelineEntry'
-import { BackArrowIcon } from '../components/Icon'
+import { ChevronLeft } from 'lucide-react'
 
 export function PropertyUpdates() {
   const { propertyId } = useParams<{ propertyId: string }>()
@@ -60,28 +60,31 @@ export function PropertyUpdates() {
   if (!isProjectManager) return <Navigate to={`/properties/${propertyId}`} replace />
 
   return (
-    <div className="page">
-      <Link to={`/properties/${propertyId}`} className="back-link icon-link">
-        <BackArrowIcon width={16} height={16} />
+    <div>
+      <Link
+        to={`/properties/${propertyId}`}
+        className="mb-5 flex items-center text-xs font-medium text-gray-500 hover:text-gray-800"
+      >
+        <ChevronLeft className="mr-1" size={16} />
         Back to property
       </Link>
 
       {propertyLoading ? (
-        <p>Loading…</p>
+        <p className="text-sm text-gray-500">Loading…</p>
       ) : !property ? (
-        <p>Property not found.</p>
+        <p className="text-sm text-gray-500">Property not found.</p>
       ) : (
         <>
-          <h1>{property.name}</h1>
+          <h1 className="mb-6 text-3xl font-bold text-gray-900">{property.name}</h1>
 
           {isProjectManager && <PhotoUploadForm propertyId={property.id} />}
 
           {entriesLoading ? (
-            <p>Loading updates…</p>
+            <p className="text-sm text-gray-500">Loading updates…</p>
           ) : (
-            <div className="timeline">
+            <div className="flex flex-col gap-4">
               {entries.length === 0 ? (
-                <p className="empty-state">No updates yet.</p>
+                <p className="py-6 text-sm text-gray-500">No updates yet.</p>
               ) : (
                 entries.map((entry) => (
                   <TimelineEntry

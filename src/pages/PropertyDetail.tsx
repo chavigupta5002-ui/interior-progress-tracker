@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { useProperty } from '../hooks/useProperty'
-import { BackArrowIcon, CameraIcon, ChecklistIcon, ReportIcon, TrashIcon } from '../components/Icon'
+import { Camera, ChevronLeft, ClipboardList, FileText, Trash2 } from 'lucide-react'
 
 export function PropertyDetail() {
   const { propertyId } = useParams<{ propertyId: string }>()
@@ -53,61 +53,75 @@ export function PropertyDetail() {
 
   if (!propertyId) return null
 
+  const navCardClass =
+    'flex flex-col items-center justify-center gap-2 rounded-xl border border-gray-100 bg-white p-5 text-center shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-colors hover:border-yellow-200'
+
   return (
-    <div className="page">
-      <Link to="/" className="back-link icon-link">
-        <BackArrowIcon width={16} height={16} />
+    <div>
+      <Link
+        to="/"
+        className="mb-5 flex items-center text-xs font-medium text-gray-500 hover:text-gray-800"
+      >
+        <ChevronLeft className="mr-1" size={16} />
         All properties
       </Link>
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-sm text-gray-500">Loading…</p>
       ) : !property ? (
-        <p>Property not found.</p>
+        <p className="text-sm text-gray-500">Property not found.</p>
       ) : (
         <>
-          <div className="page-header">
+          <div className="mb-6 flex items-start justify-between gap-3">
             <div>
-              <h1>{property.name}</h1>
-              {property.description && <p className="property-description">{property.description}</p>}
+              <h1 className="text-3xl font-bold text-gray-900">{property.name}</h1>
+              {property.description && (
+                <p className="mt-1 text-sm text-gray-600">{property.description}</p>
+              )}
             </div>
             {isAdmin && (
               <button
                 type="button"
-                className="btn btn-ghost btn-icon btn-danger"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
                 onClick={handleDeleteProperty}
                 disabled={deletingProperty}
               >
-                <TrashIcon width={16} height={16} />
-                {deletingProperty ? 'Deleting…' : 'Delete property'}
+                <Trash2 size={16} />
+                {deletingProperty ? 'Deleting…' : 'Delete'}
               </button>
             )}
           </div>
 
-          {deleteError && <p className="form-error">{deleteError}</p>}
+          {deleteError && <p className="mb-4 text-sm text-red-600">{deleteError}</p>}
 
-          {isProjectManager ? (
-            <div className="property-nav-grid">
-              <Link to={`/properties/${property.id}/scope`} className="card property-nav-card">
-                <ChecklistIcon width={28} height={28} />
-                <span>Scope of Work</span>
+          <section>
+            <h2 className="mb-3 text-lg font-semibold text-gray-800">Scope of Work</h2>
+
+            {isProjectManager ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Link to={`/properties/${property.id}/scope`} className={navCardClass}>
+                  <ClipboardList className="text-yellow-500" size={28} />
+                  <span className="text-sm font-medium text-gray-800">Scope of Work</span>
+                </Link>
+                <Link to={`/properties/${property.id}/updates`} className={navCardClass}>
+                  <Camera className="text-yellow-500" size={28} />
+                  <span className="text-sm font-medium text-gray-800">Add Updates</span>
+                </Link>
+              </div>
+            ) : (
+              <Link to={`/properties/${property.id}/scope`} className={navCardClass}>
+                <ClipboardList className="text-yellow-500" size={28} />
+                <span className="text-sm font-medium text-gray-800">Scope of Work</span>
               </Link>
-              <Link to={`/properties/${property.id}/updates`} className="card property-nav-card">
-                <CameraIcon width={28} height={28} />
-                <span>Add Updates</span>
-              </Link>
-            </div>
-          ) : (
-            <Link to={`/properties/${property.id}/scope`} className="card property-nav-card">
-              <ChecklistIcon width={28} height={28} />
-              <span>Scope of Work</span>
+            )}
+          </section>
+
+          <div className="mt-3">
+            <Link to={`/reports?propertyId=${property.id}`} className={navCardClass}>
+              <FileText className="text-yellow-500" size={28} />
+              <span className="text-sm font-medium text-gray-800">View Report</span>
             </Link>
-          )}
-
-          <Link to={`/reports?propertyId=${property.id}`} className="card property-nav-card">
-            <ReportIcon width={28} height={28} />
-            <span>View Report</span>
-          </Link>
+          </div>
         </>
       )}
     </div>
