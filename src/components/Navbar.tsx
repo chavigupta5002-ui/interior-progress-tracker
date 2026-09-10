@@ -38,7 +38,9 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
-      <img src={logo} alt="Ace Stayz" className="h-6 w-auto sm:h-8" />
+      <Link to="/">
+        <img src={logo} alt="Ace Stayz" className="h-6 w-auto sm:h-8" />
+      </Link>
 
       {session && (
         <button
