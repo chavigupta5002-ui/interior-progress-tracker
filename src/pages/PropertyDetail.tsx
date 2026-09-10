@@ -54,7 +54,7 @@ export function PropertyDetail() {
   if (!propertyId) return null
 
   const navCardClass =
-    'flex flex-col items-center justify-center gap-2 rounded-xl border border-gray-100 bg-white p-5 text-center shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-colors hover:border-yellow-200'
+    'flex flex-col items-center justify-center gap-2 rounded-xl bg-[#FFD700] p-5 text-center shadow-sm transition-colors hover:bg-yellow-400 focus:ring-4 focus:ring-yellow-100 focus:outline-none'
 
   return (
     <div>
@@ -100,26 +100,26 @@ export function PropertyDetail() {
             {isProjectManager ? (
               <div className="grid grid-cols-2 gap-3">
                 <Link to={`/properties/${property.id}/scope`} className={navCardClass}>
-                  <ClipboardList className="text-yellow-500" size={28} />
-                  <span className="text-sm font-medium text-gray-800">Scope of Work</span>
+                  <ClipboardList className="text-black" size={28} />
+                  <span className="text-sm font-semibold text-black">Scope of Work</span>
                 </Link>
                 <Link to={`/properties/${property.id}/updates`} className={navCardClass}>
-                  <Camera className="text-yellow-500" size={28} />
-                  <span className="text-sm font-medium text-gray-800">Add Updates</span>
+                  <Camera className="text-black" size={28} />
+                  <span className="text-sm font-semibold text-black">Add Updates</span>
                 </Link>
               </div>
             ) : (
               <Link to={`/properties/${property.id}/scope`} className={navCardClass}>
-                <ClipboardList className="text-yellow-500" size={28} />
-                <span className="text-sm font-medium text-gray-800">Scope of Work</span>
+                <ClipboardList className="text-black" size={28} />
+                <span className="text-sm font-semibold text-black">Scope of Work</span>
               </Link>
             )}
           </section>
 
           <div className="mt-3">
             <Link to={`/reports?propertyId=${property.id}`} className={navCardClass}>
-              <FileText className="text-yellow-500" size={28} />
-              <span className="text-sm font-medium text-gray-800">View Report</span>
+              <FileText className="text-black" size={28} />
+              <span className="text-sm font-semibold text-black">View Report</span>
             </Link>
           </div>
         </>
