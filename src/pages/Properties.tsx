@@ -75,7 +75,9 @@ export function Properties() {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold text-gray-900">Properties</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {properties.length === 1 ? 'Property' : 'Properties'}
+        </h1>
         {isProjectManager && (
           <button
             type="button"
@@ -186,7 +188,7 @@ export function Properties() {
               to={`/properties/${p.id}`}
               className="group flex flex-col items-center gap-2"
             >
-              <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-2 border-transparent bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] transition-all group-hover:border-yellow-300 group-hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.15)]">
+              <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-[#FFD700] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] transition-all group-hover:bg-yellow-400 group-hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.15)]">
                 <img src={PROPERTY_TYPE_ICON[p.property_type]} alt="" className="h-14 w-14 object-contain" />
               </div>
               <span className="text-center text-sm font-medium text-gray-800">{p.name}</span>
