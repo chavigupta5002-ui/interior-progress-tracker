@@ -6,21 +6,21 @@ import { useProperty } from '../hooks/useProperty'
 import { useScopeItems } from '../hooks/useScopeItems'
 import { useScopeItemAssignments } from '../hooks/useScopeItemAssignments'
 import { useManagerProfiles } from '../hooks/useManagerProfiles'
-import { computeItemPercent, getDirectChildren } from '../lib/scopeProgress'
-import { toggleScopeItemChecked } from '../lib/scopeActions'
+import { computeItemPercent, getAllDescendants, getDirectChildren } from '../lib/scopeProgress'
+import { deleteScopeItemWithDescendants, toggleScopeItemChecked } from '../lib/scopeActions'
 import { BatteryProgressBar } from '../components/BatteryProgressBar'
 import { ProgressRing } from '../components/ProgressRing'
 import { DeadlineStats } from '../components/DeadlineStats'
 import { FloatingActionButton } from '../components/FloatingActionButton'
 import { AddScopeItemModal } from '../components/AddScopeItemModal'
 import { ScopeItemAssigneeControl } from '../components/ScopeItemAssigneeControl'
-import { Check, ChevronLeft, ChevronRight, MoreVertical, Plus } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, MoreVertical, Plus, Trash2 } from 'lucide-react'
 import type { ScopeItem } from '../types'
 
 export function TaskDetail() {
   const { propertyId, taskId } = useParams<{ propertyId: string; taskId: string }>()
   const navigate = useNavigate()
-  const { profile, isProjectManager } = useAuth()
+  const { profile, isAdmin, isProjectManager } = useAuth()
   const canManage = isProjectManager // true for admins too, see AuthContext
   const { property } = useProperty(propertyId)
   const { items, setItems, loading, error, setError } = useScopeItems(propertyId)
@@ -31,6 +31,7 @@ export function TaskDetail() {
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [showAddSubtask, setShowAddSubtask] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [deletingSubtaskId, setDeletingSubtaskId] = useState<string | null>(null)
 
   const task = items.find((i) => i.id === taskId && i.level === 1)
   const taskPercent = task ? computeItemPercent(task, items) : 0
@@ -104,6 +105,33 @@ export function TaskDetail() {
       created_by: profile.id,
     })
     if (insertError) throw insertError
+  }
+
+  async function handleDeleteSubtask(subtask: ScopeItem) {
+    if (!profile || !property) return
+    const descendants = getAllDescendants(subtask, items)
+    const message =
+      descendants.length === 0
+        ? `Delete "${subtask.title}"? This cannot be undone.`
+        : `Delete "${subtask.title}" and its ${descendants.length} subtask${descendants.length === 1 ? '' : 's'}? This cannot be undone.`
+    if (!window.confirm(message)) return
+
+    setDeletingSubtaskId(subtask.id)
+    setError(null)
+    try {
+      await deleteScopeItemWithDescendants({
+        item: subtask,
+        items,
+        actorId: profile.id,
+        propertyId: property.id,
+      })
+      const removedIds = new Set([subtask.id, ...descendants.map((d) => d.id)])
+      setItems((prev) => prev.filter((i) => !removedIds.has(i.id)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setDeletingSubtaskId(null)
+    }
   }
 
   if (!propertyId || !taskId) return null
@@ -240,6 +268,18 @@ export function TaskDetail() {
                             </>
                           )}
                         </div>
+                      )}
+
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="flex-shrink-0 rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                          onClick={() => handleDeleteSubtask(subtask)}
+                          disabled={deletingSubtaskId === subtask.id}
+                          aria-label={`Delete ${subtask.title}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       )}
                     </div>
                   )

@@ -7,6 +7,7 @@
 // already succeeded, it's just reported to the console.
 
 import { supabase } from './supabaseClient'
+import { buildItemIndex, getAllDescendants, getItemPath } from './scopeProgress'
 import type { ActivityAction, ScopeItem, ScopeItemAssignment } from '../types'
 
 async function logActivity(params: {
@@ -117,6 +118,40 @@ export async function unassignProfileFromScopeItem(params: {
   })
 
   return data as ScopeItemAssignment
+}
+
+// Deletes a scope item and all its descendants (the database cascades
+// the delete via scope_items.parent_id's ON DELETE CASCADE — this issues
+// exactly one DELETE for the target row) and logs one item_deleted row
+// per deleted item, admin-only. The note snapshots each item's full tree
+// path since scope_item_id goes null the moment its row is gone.
+export async function deleteScopeItemWithDescendants(params: {
+  item: ScopeItem
+  items: ScopeItem[]
+  actorId: string
+  propertyId: string
+}): Promise<void> {
+  const { item, items, actorId, propertyId } = params
+  const itemsById = buildItemIndex(items)
+  const deleted = [item, ...getAllDescendants(item, items)]
+
+  const { error } = await supabase.from('scope_items').delete().eq('id', item.id)
+  if (error) throw error
+
+  try {
+    const rows = deleted.map((deletedItem) => ({
+      property_id: propertyId,
+      scope_item_id: null,
+      actor_id: actorId,
+      target_profile_id: null,
+      action: 'item_deleted' as ActivityAction,
+      note: getItemPath(deletedItem, itemsById),
+    }))
+    const { error: logError } = await supabase.from('activity_logs').insert(rows)
+    if (logError) throw logError
+  } catch (err) {
+    console.error('Failed to log activity "item_deleted"', err)
+  }
 }
 
 // Logs a new photo/note entry — called from PhotoUploadForm right after

@@ -76,6 +76,7 @@ export type ActivityAction =
   | 'item_unchecked'
   | 'item_assigned'
   | 'item_unassigned'
+  | 'item_deleted'
   | 'entry_created'
 
 export interface ActivityLog {

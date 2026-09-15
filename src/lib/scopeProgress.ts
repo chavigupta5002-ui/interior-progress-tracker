@@ -108,6 +108,40 @@ export function buildItemIndex(items: ScopeItem[]): Map<string, ScopeItem> {
   return new Map(items.map((item) => [item.id, item]))
 }
 
+// Every descendant of an item, at any depth (not just direct children) —
+// used before a delete to know exactly what else will be removed by the
+// database's cascade, so the UI can count and log each one.
+export function getAllDescendants(
+  item: ScopeItem,
+  items: ScopeItem[],
+  childrenIndex?: Map<string, ScopeItem[]>
+): ScopeItem[] {
+  const index = childrenIndex ?? buildChildrenIndex(items)
+  const result: ScopeItem[] = []
+  function walk(current: ScopeItem) {
+    for (const child of index.get(current.id) ?? []) {
+      result.push(child)
+      walk(child)
+    }
+  }
+  walk(item)
+  return result
+}
+
+// "Furniture > Chair" — an item's title prefixed by every ancestor's
+// title down from the top-level Task. Used to snapshot a deleted item's
+// position in the tree for its activity_logs note, since scope_item_id
+// goes null once the row is gone.
+export function getItemPath(item: ScopeItem, itemsById: Map<string, ScopeItem>): string {
+  const titles: string[] = []
+  let current: ScopeItem | undefined = item
+  while (current) {
+    titles.unshift(current.title)
+    current = current.parent_id ? itemsById.get(current.parent_id) : undefined
+  }
+  return titles.join(' > ')
+}
+
 // Walks parent_id up to the level-1 Task an item ultimately belongs to
 // (an item is its own ancestor when it's already level 1).
 export function getTopLevelAncestor(item: ScopeItem, itemsById: Map<string, ScopeItem>): ScopeItem {

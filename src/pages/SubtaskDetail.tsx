@@ -6,12 +6,12 @@ import { useScopeItems } from '../hooks/useScopeItems'
 import { useScopeItemAssignments } from '../hooks/useScopeItemAssignments'
 import { useManagerProfiles } from '../hooks/useManagerProfiles'
 import { computeItemPercent, getDirectChildren } from '../lib/scopeProgress'
-import { toggleScopeItemChecked } from '../lib/scopeActions'
+import { deleteScopeItemWithDescendants, toggleScopeItemChecked } from '../lib/scopeActions'
 import { ProgressRing } from '../components/ProgressRing'
 import { FloatingActionButton } from '../components/FloatingActionButton'
 import { AddScopeItemModal } from '../components/AddScopeItemModal'
 import { ScopeItemAssigneeControl } from '../components/ScopeItemAssigneeControl'
-import { Check, ChevronLeft } from 'lucide-react'
+import { Check, ChevronLeft, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { ScopeItem } from '../types'
 
@@ -21,7 +21,7 @@ export function SubtaskDetail() {
     taskId: string
     subtaskId: string
   }>()
-  const { profile, isProjectManager } = useAuth()
+  const { profile, isAdmin, isProjectManager } = useAuth()
   const canManage = isProjectManager // true for admins too, see AuthContext
   const { property } = useProperty(propertyId)
   const { items, setItems, loading, error, setError } = useScopeItems(propertyId)
@@ -30,6 +30,7 @@ export function SubtaskDetail() {
   const nameById = new Map(managerProfiles.map((p) => [p.id, p.display_name]))
 
   const [showAddSubSubtask, setShowAddSubSubtask] = useState(false)
+  const [deletingSubsubtaskId, setDeletingSubsubtaskId] = useState<string | null>(null)
 
   const subtask = items.find((i) => i.id === subtaskId && i.level === 2)
   const subtaskPercent = subtask ? computeItemPercent(subtask, items) : 0
@@ -69,6 +70,27 @@ export function SubtaskDetail() {
     if (insertError) throw insertError
   }
 
+  async function handleDeleteSubsubtask(subsubtask: ScopeItem) {
+    if (!profile || !property) return
+    if (!window.confirm(`Delete "${subsubtask.title}"? This cannot be undone.`)) return
+
+    setDeletingSubsubtaskId(subsubtask.id)
+    setError(null)
+    try {
+      await deleteScopeItemWithDescendants({
+        item: subsubtask,
+        items,
+        actorId: profile.id,
+        propertyId: property.id,
+      })
+      setItems((prev) => prev.filter((i) => i.id !== subsubtask.id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setDeletingSubsubtaskId(null)
+    }
+  }
+
   if (!propertyId || !taskId || !subtaskId) return null
 
   return (
@@ -105,27 +127,41 @@ export function SubtaskDetail() {
               <div className="flex flex-col gap-2">
                 {subsubtasks.map((subsubtask) => (
                   <div key={subsubtask.id} className="rounded-lg border border-gray-100 bg-white p-3">
-                    <label className="flex cursor-pointer items-center gap-3">
-                      <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-200 bg-white">
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={!!subsubtask.checked_at}
-                          disabled={!canManage}
-                          onChange={() => handleToggle(subsubtask)}
-                        />
-                        {subsubtask.checked_at && (
-                          <span className="absolute inset-0 flex items-center justify-center rounded bg-emerald-600">
-                            <Check className="text-white" size={12} strokeWidth={3} />
-                          </span>
-                        )}
-                      </span>
-                      <span
-                        className={`truncate text-sm font-medium text-gray-900 ${subsubtask.checked_at ? 'line-through opacity-70' : ''}`}
-                      >
-                        {subsubtask.title}
-                      </span>
-                    </label>
+                    <div className="flex items-center gap-1">
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                        <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-200 bg-white">
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={!!subsubtask.checked_at}
+                            disabled={!canManage}
+                            onChange={() => handleToggle(subsubtask)}
+                          />
+                          {subsubtask.checked_at && (
+                            <span className="absolute inset-0 flex items-center justify-center rounded bg-emerald-600">
+                              <Check className="text-white" size={12} strokeWidth={3} />
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          className={`truncate text-sm font-medium text-gray-900 ${subsubtask.checked_at ? 'line-through opacity-70' : ''}`}
+                        >
+                          {subsubtask.title}
+                        </span>
+                      </label>
+
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="flex-shrink-0 rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                          onClick={() => handleDeleteSubsubtask(subsubtask)}
+                          disabled={deletingSubsubtaskId === subsubtask.id}
+                          aria-label={`Delete ${subsubtask.title}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
 
                     {canManage && profile && property && (
                       <ScopeItemAssigneeControl

@@ -4,24 +4,33 @@ import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { useProperty } from '../hooks/useProperty'
 import { useScopeItems } from '../hooks/useScopeItems'
-import { computeItemPercent, computePropertyPercent, countCompleteDirectChildren } from '../lib/scopeProgress'
+import {
+  computeItemPercent,
+  computePropertyPercent,
+  countCompleteDirectChildren,
+  getAllDescendants,
+} from '../lib/scopeProgress'
+import { deleteScopeItemWithDescendants } from '../lib/scopeActions'
 import { BatteryProgressBar } from '../components/BatteryProgressBar'
 import { DeadlineStats } from '../components/DeadlineStats'
 import { FloatingActionButton } from '../components/FloatingActionButton'
 import { AddScopeItemModal } from '../components/AddScopeItemModal'
 import { CongratsModal } from '../components/CongratsModal'
 import { Camera, ChevronLeft, ChevronRight, FileText, Trash2 } from 'lucide-react'
+import type { ScopeItem } from '../types'
 
 export function PropertyDetail() {
   const { propertyId } = useParams<{ propertyId: string }>()
   const navigate = useNavigate()
   const { profile, isAdmin, isProjectManager } = useAuth()
   const { property, loading, setProperty } = useProperty(propertyId)
-  const { items, loading: itemsLoading, error: itemsError } = useScopeItems(propertyId)
+  const { items, setItems, loading: itemsLoading, error: itemsError, setError: setItemsError } =
+    useScopeItems(propertyId)
   const canManage = isProjectManager // true for admins too, see AuthContext
 
   const [deletingProperty, setDeletingProperty] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null)
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showCongrats, setShowCongrats] = useState(false)
@@ -95,6 +104,33 @@ export function PropertyDetail() {
     if (error) {
       setAddError(error.message)
       throw error
+    }
+  }
+
+  async function handleDeleteTask(task: ScopeItem) {
+    if (!profile || !property) return
+    const descendants = getAllDescendants(task, items)
+    const message =
+      descendants.length === 0
+        ? `Delete "${task.title}"? This cannot be undone.`
+        : `Delete "${task.title}" and its ${descendants.length} subtask${descendants.length === 1 ? '' : 's'}? This cannot be undone.`
+    if (!window.confirm(message)) return
+
+    setDeletingTaskId(task.id)
+    setItemsError(null)
+    try {
+      await deleteScopeItemWithDescendants({
+        item: task,
+        items,
+        actorId: profile.id,
+        propertyId: property.id,
+      })
+      const removedIds = new Set([task.id, ...descendants.map((d) => d.id)])
+      setItems((prev) => prev.filter((i) => !removedIds.has(i.id)))
+    } catch (err) {
+      setItemsError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setDeletingTaskId(null)
     }
   }
 
@@ -193,20 +229,32 @@ export function PropertyDetail() {
                   const taskPercent = computeItemPercent(task, items)
                   const { complete, total } = countCompleteDirectChildren(task, items)
                   return (
-                    <Link
-                      key={task.id}
-                      to={`/properties/${property.id}/tasks/${task.id}`}
-                      className="block rounded-xl border border-gray-100 bg-white p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-colors hover:border-gray-200"
-                    >
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <h3 className="min-w-0 truncate text-base font-semibold text-gray-900">{task.title}</h3>
-                        <div className="flex flex-shrink-0 items-center gap-1 text-xs font-medium text-gray-500">
-                          {complete} of {total} subtasks
-                          <ChevronRight size={14} className="text-gray-300" />
+                    <div key={task.id} className="flex items-center gap-1">
+                      <Link
+                        to={`/properties/${property.id}/tasks/${task.id}`}
+                        className="block flex-1 rounded-xl border border-gray-100 bg-white p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-colors hover:border-gray-200"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <h3 className="min-w-0 truncate text-base font-semibold text-gray-900">{task.title}</h3>
+                          <div className="flex flex-shrink-0 items-center gap-1 text-xs font-medium text-gray-500">
+                            {complete} of {total} subtasks
+                            <ChevronRight size={14} className="text-gray-300" />
+                          </div>
                         </div>
-                      </div>
-                      <BatteryProgressBar percent={taskPercent} />
-                    </Link>
+                        <BatteryProgressBar percent={taskPercent} />
+                      </Link>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className="flex-shrink-0 rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                          onClick={() => handleDeleteTask(task)}
+                          disabled={deletingTaskId === task.id}
+                          aria-label={`Delete ${task.title}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   )
                 })}
               </div>

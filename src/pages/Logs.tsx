@@ -10,6 +10,7 @@ const ACTION_LABELS: Record<ActivityAction, string> = {
   item_unchecked: 'Unchecked',
   item_assigned: 'Assigned',
   item_unassigned: 'Unassigned',
+  item_deleted: 'Deleted',
   entry_created: 'Update added',
 }
 

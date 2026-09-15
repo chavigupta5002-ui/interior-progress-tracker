@@ -31,6 +31,14 @@ export function formatActivityLogLine(
     return `${actorName} added a new update in ${propertyName} · ${when}`
   }
 
+  if (log.action === 'item_deleted') {
+    // scope_item_id is always null for these — the note (the item's full
+    // tree path, e.g. "Furniture > Chair") is the only record left.
+    const path = log.note ?? 'a scope item'
+    const propertySegment = property ? ` · ${property.name}` : ''
+    return `${actorName} deleted '${path}'${propertySegment} · ${when}`
+  }
+
   const item = log.scope_item_id ? ctx.itemsById.get(log.scope_item_id) : undefined
 
   if (item && property) {
