@@ -5,12 +5,22 @@ import logoUrl from '../assets/logo-navbar.png'
 
 // Tailwind emerald-600, matching the app's "success / active progress" color.
 const EMERALD = { r: 5, g: 150, b: 105 }
+const RED_500 = { r: 239, g: 68, b: 68 }
+const YELLOW_400 = { r: 250, g: 204, b: 21 }
 const GRAY_50 = { r: 249, g: 250, b: 251 }
 const GRAY_100 = { r: 243, g: 244, b: 246 }
+const GRAY_200 = { r: 229, g: 231, b: 235 }
 const GRAY_900 = { r: 17, g: 24, b: 39 }
 const GRAY_700 = { r: 55, g: 65, b: 81 }
 const GRAY_500 = { r: 107, g: 114, b: 128 }
 const GRAY_400 = { r: 156, g: 163, b: 175 }
+
+// Same red/yellow/green thresholds as the app's progressColor.ts.
+function colorForPercent(percent: number) {
+  if (percent < 10) return RED_500
+  if (percent < 50) return YELLOW_400
+  return EMERALD
+}
 
 function formatTimestamp(iso: string) {
   const date = new Date(iso)
@@ -56,12 +66,31 @@ const TILE_GAP = 8
 const TILE_HEIGHT = 120
 const MARGIN = 72 // 1 inch
 const BANNER_HEIGHT = 108 // 1.5 inch
+const MINI_BAR_WIDTH = 60
+const MINI_BAR_HEIGHT = 6
+
+// A small inline progress bar (rounded track + colored fill), used next
+// to each header/sub-header in the checklist — same shape as
+// MiniProgressBar.tsx in the app, drawn at the given top-right corner.
+function drawMiniBar(doc: jsPDF, rightX: number, topY: number, percent: number) {
+  const x = rightX - MINI_BAR_WIDTH
+  doc.setFillColor(GRAY_200.r, GRAY_200.g, GRAY_200.b)
+  doc.roundedRect(x, topY, MINI_BAR_WIDTH, MINI_BAR_HEIGHT, MINI_BAR_HEIGHT / 2, MINI_BAR_HEIGHT / 2, 'F')
+  const fillWidth = Math.max(4, (percent / 100) * MINI_BAR_WIDTH)
+  const color = colorForPercent(percent)
+  doc.setFillColor(color.r, color.g, color.b)
+  doc.roundedRect(x, topY, fillWidth, MINI_BAR_HEIGHT, MINI_BAR_HEIGHT / 2, MINI_BAR_HEIGHT / 2, 'F')
+  doc.setFontSize(8)
+  doc.setTextColor(GRAY_500.r, GRAY_500.g, GRAY_500.b)
+  doc.text(`${percent}%`, x - 6, topY + MINI_BAR_HEIGHT, { align: 'right' })
+}
 
 export async function exportReportToPdf(
   property: Property,
   dayReports: DayReport[],
   generatedByName: string,
-  generatedAt: Date
+  generatedAt: Date,
+  nameById: Map<string, string>
 ) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -103,6 +132,22 @@ export async function exportReportToPdf(
     }
   }
 
+  function drawChecklistItem(item: { title: string; checkedAt: string; checkedBy: string | null }, indentX: number) {
+    ensureSpace(26)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(EMERALD.r, EMERALD.g, EMERALD.b)
+    doc.text('✓', indentX, y)
+    doc.setTextColor(GRAY_700.r, GRAY_700.g, GRAY_700.b)
+    doc.text(item.title, indentX + 12, y)
+    y += 11
+    const checkerName = nameById.get(item.checkedBy ?? '') ?? 'Someone'
+    doc.setFontSize(8)
+    doc.setTextColor(GRAY_400.r, GRAY_400.g, GRAY_400.b)
+    doc.text(`Checked by ${checkerName} · ${formatTimestamp(item.checkedAt)}`, indentX + 12, y)
+    y += 14
+  }
+
   if (dayReports.length === 0) {
     doc.setFontSize(12)
     doc.setTextColor(GRAY_500.r, GRAY_500.g, GRAY_500.b)
@@ -135,7 +180,8 @@ export async function exportReportToPdf(
 
     // Checklist — fully expanded in the PDF, no collapsing. Each section
     // rolls up every checked item (Subtask or Sub-subtask) under its
-    // top-level Task.
+    // top-level Task, with a mini progress bar per header/sub-header
+    // showing that node's own cascading percent as of this day.
     if (day.checklistSections.length > 0) {
       for (const section of day.checklistSections) {
         ensureSpace(18)
@@ -144,16 +190,27 @@ export async function exportReportToPdf(
         doc.setTextColor(GRAY_900.r, GRAY_900.g, GRAY_900.b)
         doc.text(section.taskTitle, MARGIN, y)
         doc.setFont('helvetica', 'normal')
-        y += 15
-        for (const item of section.items) {
-          ensureSpace(14)
-          doc.setFontSize(10)
-          doc.setTextColor(EMERALD.r, EMERALD.g, EMERALD.b)
-          doc.text('✓', MARGIN + 4, y)
-          doc.setTextColor(GRAY_700.r, GRAY_700.g, GRAY_700.b)
-          doc.text(item.title, MARGIN + 16, y)
-          y += 13
+        drawMiniBar(doc, MARGIN + contentWidth, y - MINI_BAR_HEIGHT, section.percent)
+        y += 16
+
+        for (const item of section.directItems) {
+          drawChecklistItem(item, MARGIN + 4)
         }
+
+        for (const sub of section.subHeaderGroups) {
+          ensureSpace(16)
+          doc.setFontSize(10)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(GRAY_700.r, GRAY_700.g, GRAY_700.b)
+          doc.text(sub.subtaskTitle, MARGIN + 16, y)
+          doc.setFont('helvetica', 'normal')
+          drawMiniBar(doc, MARGIN + contentWidth, y - MINI_BAR_HEIGHT, sub.percent)
+          y += 15
+          for (const item of sub.items) {
+            drawChecklistItem(item, MARGIN + 24)
+          }
+        }
+
         y += 6
       }
       y += 4

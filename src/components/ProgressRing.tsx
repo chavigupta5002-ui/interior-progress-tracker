@@ -1,12 +1,5 @@
 import { formatPercent } from '../lib/progress'
-
-// Same red/yellow/green thresholds as BatteryProgressBar, as hex since
-// SVG stroke doesn't take Tailwind classes.
-function ringColor(percent: number): string {
-  if (percent < 10) return '#ef4444' // red-500
-  if (percent < 50) return '#facc15' // yellow-400
-  return '#059669' // emerald-600
-}
+import { progressColorHex } from '../lib/progressColor'
 
 export function ProgressRing({
   percent,
@@ -30,7 +23,7 @@ export function ProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={ringColor(clamped)}
+          stroke={progressColorHex(clamped)}
           strokeWidth={strokeWidth}
           fill="none"
           strokeLinecap="round"

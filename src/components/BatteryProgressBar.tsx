@@ -1,11 +1,5 @@
 import { formatPercent } from '../lib/progress'
-
-// Red below 10%, yellow below 50%, green on up toward 100%.
-function progressBarColorClass(percent: number): string {
-  if (percent < 10) return 'bg-red-500'
-  if (percent < 50) return 'bg-yellow-400'
-  return 'bg-emerald-600'
-}
+import { progressColorClass } from '../lib/progressColor'
 
 export function BatteryProgressBar({ percent, label }: { percent: number; label?: string }) {
   const clamped = Math.min(100, Math.max(0, percent))
@@ -27,7 +21,7 @@ export function BatteryProgressBar({ percent, label }: { percent: number; label?
         aria-label={label}
       >
         <div
-          className={`h-full rounded-full transition-all duration-500 ${progressBarColorClass(clamped)}`}
+          className={`h-full rounded-full transition-all duration-500 ${progressColorClass(clamped)}`}
           style={{ width: `${clamped}%` }}
         />
       </div>

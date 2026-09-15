@@ -2,7 +2,7 @@
 // on-screen Reports page and the PDF export, so both always match.
 
 import type { Entry, ScopeItem } from '../types'
-import { buildItemIndex, computePropertyPercentAsOf, getTopLevelAncestor } from './scopeProgress'
+import { buildItemIndex, computeItemPercentAsOf, computePropertyPercentAsOf, getTopLevelAncestor } from './scopeProgress'
 
 export function toDateKey(iso: string): string {
   const d = new Date(iso)
@@ -41,13 +41,33 @@ export function enumerateDateRange(start: string, end: string): string[] {
   return result
 }
 
+export interface DayChecklistItem {
+  id: string
+  title: string
+  checkedAt: string
+  checkedBy: string | null
+}
+
+// A level-2 Subtask acting as a sub-header for level-3 items checked
+// under it that day, with its own cascading percent (as of that day).
+export interface DaySubHeaderGroup {
+  subtaskId: string
+  subtaskTitle: string
+  percent: number
+  items: DayChecklistItem[]
+}
+
 // Items checked on a given day, rolled up under their top-level Task —
 // walking the 3-level tree so a checked Subtask or Sub-subtask still
-// lands in the right Task's section.
+// lands in the right Task's section. A leaf checked directly under the
+// Task (a childless level-2 Subtask) lands in directItems; a level-3
+// item lands in its immediate Subtask's subHeaderGroup instead.
 export interface DayChecklistSection {
   taskId: string
   taskTitle: string
-  items: { id: string; title: string; checkedAt: string }[]
+  percent: number
+  directItems: DayChecklistItem[]
+  subHeaderGroups: DaySubHeaderGroup[]
 }
 
 export interface DayNote {
@@ -85,17 +105,60 @@ export function buildDayReports(
     const progressPercent = Math.round(computePropertyPercentAsOf(scopeItems, cutoff) * 10) / 10
 
     const checkedThisDay = scopeItems.filter((item) => item.checked_at && toDateKey(item.checked_at) === dateKey)
-    const sectionsByTask = new Map<string, DayChecklistSection>()
+
+    interface WorkingSection {
+      taskId: string
+      taskTitle: string
+      directItems: DayChecklistItem[]
+      subHeaderGroups: Map<string, DaySubHeaderGroup>
+    }
+    const sectionsByTask = new Map<string, WorkingSection>()
+
     for (const item of checkedThisDay) {
       const task = getTopLevelAncestor(item, byId)
       if (!sectionsByTask.has(task.id)) {
-        sectionsByTask.set(task.id, { taskId: task.id, taskTitle: task.title, items: [] })
+        sectionsByTask.set(task.id, {
+          taskId: task.id,
+          taskTitle: task.title,
+          directItems: [],
+          subHeaderGroups: new Map(),
+        })
       }
-      sectionsByTask.get(task.id)!.items.push({ id: item.id, title: item.title, checkedAt: item.checked_at! })
+      const section = sectionsByTask.get(task.id)!
+      const checklistItem: DayChecklistItem = {
+        id: item.id,
+        title: item.title,
+        checkedAt: item.checked_at!,
+        checkedBy: item.checked_by,
+      }
+
+      const parent = item.parent_id ? byId.get(item.parent_id) : undefined
+      if (parent && parent.id !== task.id) {
+        // A level-3 item — group under its immediate Subtask (sub-header).
+        if (!section.subHeaderGroups.has(parent.id)) {
+          section.subHeaderGroups.set(parent.id, {
+            subtaskId: parent.id,
+            subtaskTitle: parent.title,
+            percent: Math.round(computeItemPercentAsOf(parent, scopeItems, cutoff) * 10) / 10,
+            items: [],
+          })
+        }
+        section.subHeaderGroups.get(parent.id)!.items.push(checklistItem)
+      } else {
+        // A childless level-2 Subtask checked directly under the Task.
+        section.directItems.push(checklistItem)
+      }
     }
-    const checklistSections = [...sectionsByTask.values()].sort(
-      (a, b) => (taskOrder.get(a.taskId) ?? 0) - (taskOrder.get(b.taskId) ?? 0)
-    )
+
+    const checklistSections: DayChecklistSection[] = [...sectionsByTask.values()]
+      .sort((a, b) => (taskOrder.get(a.taskId) ?? 0) - (taskOrder.get(b.taskId) ?? 0))
+      .map((section) => ({
+        taskId: section.taskId,
+        taskTitle: section.taskTitle,
+        percent: Math.round(computeItemPercentAsOf(byId.get(section.taskId)!, scopeItems, cutoff) * 10) / 10,
+        directItems: section.directItems,
+        subHeaderGroups: [...section.subHeaderGroups.values()],
+      }))
 
     const entriesThisDay = entries.filter((e) => toDateKey(e.created_at) === dateKey)
     const photoUrls = entriesThisDay.flatMap((e) => (e.photo_paths ?? []).map(photoUrlResolver))

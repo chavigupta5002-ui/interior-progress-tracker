@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import type { Entry, Property, ScopeItem } from '../types'
+import { useManagerProfiles } from '../hooks/useManagerProfiles'
+import type { Entry, Property, ScopeItem, ScopeItemAssignment } from '../types'
 import { Carousel } from '../components/Carousel'
 import { ProgressBar } from '../components/ProgressBar'
+import { MiniProgressBar } from '../components/MiniProgressBar'
 import { exportReportToPdf } from '../lib/pdf'
 import { buildDayReports, enumerateDateRange } from '../lib/reportDays'
+import { UNASSIGNED_KEY, computeRemainingWeightByAssignee } from '../lib/scopeProgress'
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react'
+
+const ASSIGNEE_COLORS = ['#FFD700', '#059669', '#3b82f6', '#8b5cf6', '#f97316', '#ec4899', '#14b8a6', '#ef4444']
+const UNASSIGNED_COLOR = '#9ca3af' // gray-400
 
 type DateMode = 'single' | 'range' | 'multiple'
 
@@ -37,7 +44,11 @@ export function Reports() {
 
   const [allEntries, setAllEntries] = useState<Entry[]>([])
   const [scopeItems, setScopeItems] = useState<ScopeItem[]>([])
+  const [activeAssignments, setActiveAssignments] = useState<ScopeItemAssignment[]>([])
   const [loading, setLoading] = useState(false)
+
+  const { profiles: managerProfiles } = useManagerProfiles()
+  const nameById = useMemo(() => new Map(managerProfiles.map((p) => [p.id, p.display_name])), [managerProfiles])
   const [hasGenerated, setHasGenerated] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null)
@@ -73,6 +84,23 @@ export function Reports() {
     )
   }, [hasGenerated, dateKeys, allEntries, scopeItems])
 
+  const pieData = useMemo(() => {
+    if (!hasGenerated) return []
+    const remainingByAssignee = computeRemainingWeightByAssignee(scopeItems, activeAssignments)
+    return [...remainingByAssignee.entries()]
+      .map(([key, value]) => ({
+        key,
+        name: key === UNASSIGNED_KEY ? 'Unassigned' : (nameById.get(key) ?? 'Someone'),
+        value: Math.round(value * 10) / 10,
+      }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+  }, [hasGenerated, scopeItems, activeAssignments, nameById])
+
+  function colorForSlice(key: string, index: number) {
+    return key === UNASSIGNED_KEY ? UNASSIGNED_COLOR : ASSIGNEE_COLORS[index % ASSIGNEE_COLORS.length]
+  }
+
   function addMultiDate() {
     if (!multiInput) return
     setMultiDates((prev) => (prev.includes(multiInput) ? prev : [...prev, multiInput].sort()))
@@ -88,11 +116,16 @@ export function Reports() {
     setLoading(true)
     setHasGenerated(true)
     setGenerateError(null)
-    const [entriesRes, itemsRes] = await Promise.all([
+    const [entriesRes, itemsRes, assignmentsRes] = await Promise.all([
       supabase.from('entries').select('*').eq('property_id', propertyId).order('created_at', { ascending: false }),
       supabase.from('scope_items').select('*').eq('property_id', propertyId).order('level').order('position'),
+      supabase
+        .from('scope_item_assignments')
+        .select('id, scope_item_id, profile_id, assigned_by, assigned_at, unassigned_at, scope_items!inner(property_id)')
+        .eq('scope_items.property_id', propertyId)
+        .is('unassigned_at', null),
     ])
-    const firstError = entriesRes.error ?? itemsRes.error
+    const firstError = entriesRes.error ?? itemsRes.error ?? assignmentsRes.error
     if (firstError) {
       setGenerateError(firstError.message)
       setLoading(false)
@@ -100,6 +133,9 @@ export function Reports() {
     }
     setAllEntries(entriesRes.data ?? [])
     setScopeItems(itemsRes.data ?? [])
+    setActiveAssignments(
+      (assignmentsRes.data ?? []).map(({ scope_items: _scopeItems, ...row }) => row as ScopeItemAssignment)
+    )
     setGeneratedAt(new Date())
     setLoading(false)
   }
@@ -116,7 +152,7 @@ export function Reports() {
     if (!selectedProperty || !generatedAt) return
     setExporting(true)
     try {
-      await exportReportToPdf(selectedProperty, dayReports, generatedByName, generatedAt)
+      await exportReportToPdf(selectedProperty, dayReports, generatedByName, generatedAt, nameById)
     } finally {
       setExporting(false)
     }
@@ -282,6 +318,25 @@ export function Reports() {
             </button>
           </div>
 
+          <div className="mb-4 rounded-xl border border-gray-100 bg-white p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+            <h3 className="mb-3 text-base font-semibold text-gray-900">Work left by person</h3>
+            {pieData.length === 0 ? (
+              <p className="py-6 text-center text-sm text-gray-500">Nothing pending.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                    {pieData.map((entry, index) => (
+                      <Cell key={entry.key} fill={colorForSlice(entry.key, index)} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `${value}%`} />
+                  <Legend verticalAlign="bottom" height={24} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
           {dayReports.length === 0 ? (
             <p className="py-6 text-sm text-gray-500">No days found for the selected date(s).</p>
           ) : (
@@ -302,24 +357,53 @@ export function Reports() {
                         {day.checklistSections.map((section) => (
                           <details key={section.taskId} className="group rounded-lg border border-gray-100 p-3">
                             <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
+                              <div className="flex min-w-0 items-center gap-2">
                                 <ChevronRight
-                                  className="text-gray-400 transition-transform group-open:rotate-90"
+                                  className="flex-shrink-0 text-gray-400 transition-transform group-open:rotate-90"
                                   size={14}
                                 />
-                                <span className="text-sm font-semibold text-gray-900">{section.taskTitle}</span>
+                                <span className="truncate text-sm font-semibold text-gray-900">
+                                  {section.taskTitle}
+                                </span>
                               </div>
-                              <span className="text-[11px] font-medium text-gray-500">
-                                {section.items.length} completed
-                              </span>
+                              <MiniProgressBar percent={section.percent} />
                             </summary>
-                            <ul className="mt-2 flex flex-col gap-1 pl-6">
-                              {section.items.map((item) => (
-                                <li key={item.id} className="text-sm text-gray-700">
-                                  {item.title}
-                                </li>
+                            <div className="mt-2 flex flex-col gap-2 pl-6">
+                              {section.directItems.length > 0 && (
+                                <ul className="flex flex-col gap-2">
+                                  {section.directItems.map((item) => (
+                                    <li key={item.id} className="text-sm text-gray-700">
+                                      {item.title}
+                                      <p className="mt-0.5 text-[11px] text-gray-400">
+                                        Checked by {nameById.get(item.checkedBy ?? '') ?? 'Someone'} ·{' '}
+                                        {formatTimestamp(item.checkedAt)}
+                                      </p>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                              {section.subHeaderGroups.map((sub) => (
+                                <div key={sub.subtaskId} className="rounded-lg border border-gray-100 p-2.5">
+                                  <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+                                    <span className="truncate text-sm font-medium text-gray-800">
+                                      {sub.subtaskTitle}
+                                    </span>
+                                    <MiniProgressBar percent={sub.percent} />
+                                  </div>
+                                  <ul className="flex flex-col gap-2 pl-3">
+                                    {sub.items.map((item) => (
+                                      <li key={item.id} className="text-sm text-gray-700">
+                                        {item.title}
+                                        <p className="mt-0.5 text-[11px] text-gray-400">
+                                          Checked by {nameById.get(item.checkedBy ?? '') ?? 'Someone'} ·{' '}
+                                          {formatTimestamp(item.checkedAt)}
+                                        </p>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
                               ))}
-                            </ul>
+                            </div>
                           </details>
                         ))}
                       </div>
