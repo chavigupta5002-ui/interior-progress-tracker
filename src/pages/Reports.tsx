@@ -10,7 +10,13 @@ import { ProgressBar } from '../components/ProgressBar'
 import { MiniProgressBar } from '../components/MiniProgressBar'
 import { exportReportToPdf } from '../lib/pdf'
 import { buildDayReports, enumerateDateRange } from '../lib/reportDays'
-import { UNASSIGNED_KEY, computeRemainingWeightByAssignee } from '../lib/scopeProgress'
+import {
+  UNASSIGNED_KEY,
+  buildItemIndex,
+  computeRemainingWeightByAssignee,
+  getPendingItemsForAssignee,
+  getTopLevelAncestor,
+} from '../lib/scopeProgress'
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react'
 
 const ASSIGNEE_COLORS = ['#FFD700', '#059669', '#3b82f6', '#8b5cf6', '#f97316', '#ec4899', '#14b8a6', '#ef4444']
@@ -46,6 +52,7 @@ export function Reports() {
   const [scopeItems, setScopeItems] = useState<ScopeItem[]>([])
   const [activeAssignments, setActiveAssignments] = useState<ScopeItemAssignment[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedSliceKey, setSelectedSliceKey] = useState<string | null>(null)
 
   const { profiles: managerProfiles } = useManagerProfiles()
   const nameById = useMemo(() => new Map(managerProfiles.map((p) => [p.id, p.display_name])), [managerProfiles])
@@ -101,6 +108,25 @@ export function Reports() {
     return key === UNASSIGNED_KEY ? UNASSIGNED_COLOR : ASSIGNEE_COLORS[index % ASSIGNEE_COLORS.length]
   }
 
+  // The selected slice's pending items, grouped by top-level Task — same
+  // header → point structure used elsewhere in the report.
+  const selectedPendingGroups = useMemo(() => {
+    if (!selectedSliceKey) return []
+    const pendingItems = getPendingItemsForAssignee(scopeItems, activeAssignments, selectedSliceKey)
+    const byId = buildItemIndex(scopeItems)
+    const byTask = new Map<string, { taskId: string; taskTitle: string; items: ScopeItem[] }>()
+    for (const item of pendingItems) {
+      const task = getTopLevelAncestor(item, byId)
+      if (!byTask.has(task.id)) byTask.set(task.id, { taskId: task.id, taskTitle: task.title, items: [] })
+      byTask.get(task.id)!.items.push(item)
+    }
+    return [...byTask.values()]
+  }, [selectedSliceKey, scopeItems, activeAssignments])
+
+  function handleSliceClick(key: string) {
+    setSelectedSliceKey((prev) => (prev === key ? null : key))
+  }
+
   function addMultiDate() {
     if (!multiInput) return
     setMultiDates((prev) => (prev.includes(multiInput) ? prev : [...prev, multiInput].sort()))
@@ -116,6 +142,7 @@ export function Reports() {
     setLoading(true)
     setHasGenerated(true)
     setGenerateError(null)
+    setSelectedSliceKey(null)
     const [entriesRes, itemsRes, assignmentsRes] = await Promise.all([
       supabase.from('entries').select('*').eq('property_id', propertyId).order('created_at', { ascending: false }),
       supabase.from('scope_items').select('*').eq('property_id', propertyId).order('level').order('position'),
@@ -319,21 +346,75 @@ export function Reports() {
           </div>
 
           <div className="mb-4 rounded-xl border border-gray-100 bg-white p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
-            <h3 className="mb-3 text-base font-semibold text-gray-900">Work left by person</h3>
+            <h3 className="mb-3 text-base font-semibold text-gray-900">Pending Tasks</h3>
             {pieData.length === 0 ? (
               <p className="py-6 text-center text-sm text-gray-500">Nothing pending.</p>
             ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
-                    {pieData.map((entry, index) => (
-                      <Cell key={entry.key} fill={colorForSlice(entry.key, index)} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${value}%`} />
-                  <Legend verticalAlign="bottom" height={24} />
-                </PieChart>
-              </ResponsiveContainer>
+              // Clicking outside a slice (blank chart area, legend) collapses
+              // the expanded list; a slice's own click stops propagation so
+              // it can toggle independently.
+              <div onClick={() => setSelectedSliceKey(null)}>
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={2}
+                      cursor="pointer"
+                      onClick={(entry, _index, event) => {
+                        event.stopPropagation()
+                        const key = (entry as { key?: string })?.key
+                        if (key) handleSliceClick(key)
+                      }}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell
+                          key={entry.key}
+                          fill={colorForSlice(entry.key, index)}
+                          stroke={selectedSliceKey === entry.key ? '#000000' : undefined}
+                          strokeWidth={selectedSliceKey === entry.key ? 2 : 0}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `${value}%`} />
+                    <Legend verticalAlign="bottom" height={24} />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                {selectedSliceKey && (
+                  <div
+                    className="mt-2 border-t border-gray-100 pt-4"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <h4 className="mb-3 text-sm font-semibold text-gray-800">
+                      Pending for {pieData.find((d) => d.key === selectedSliceKey)?.name ?? ''}
+                    </h4>
+                    {selectedPendingGroups.length === 0 ? (
+                      <p className="text-sm text-gray-500">Nothing pending.</p>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {selectedPendingGroups.map((group) => (
+                          <div key={group.taskId}>
+                            <p className="mb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                              {group.taskTitle}
+                            </p>
+                            <ul className="flex flex-col gap-1 pl-2">
+                              {group.items.map((item) => (
+                                <li key={item.id} className="text-sm text-gray-700">
+                                  {item.title}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

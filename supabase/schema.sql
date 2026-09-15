@@ -518,6 +518,26 @@ create policy "Admins and PMs can delete scope item assignments"
     )
   );
 
+-- Unassigning someone is an UPDATE (sets unassigned_at), not a DELETE —
+-- this was missing before 014_scope_item_assignments_update_policy.sql,
+-- which silently blocked every unassign under RLS's default-deny rule.
+drop policy if exists "Admins and PMs can update scope item assignments" on public.scope_item_assignments;
+create policy "Admins and PMs can update scope item assignments"
+  on public.scope_item_assignments for update
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+    )
+  );
+
 drop policy if exists "Activity logs readable by admins, PMs, and granted viewers" on public.activity_logs;
 create policy "Activity logs readable by admins, PMs, and granted viewers"
   on public.activity_logs for select

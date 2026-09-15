@@ -152,6 +152,17 @@ export function computeLeafWeights(items: ScopeItem[]): Map<string, number> {
 
 export const UNASSIGNED_KEY = 'unassigned'
 
+function buildAssigneesByItem(activeAssignments: ScopeItemAssignment[]): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+  for (const a of activeAssignments) {
+    if (a.unassigned_at) continue
+    const list = map.get(a.scope_item_id) ?? []
+    list.push(a.profile_id)
+    map.set(a.scope_item_id, list)
+  }
+  return map
+}
+
 // For every unchecked leaf, splits its weighted contribution to the
 // property total (see computeLeafWeights) evenly across its currently
 // active assignees — or files it under UNASSIGNED_KEY when it has none
@@ -163,13 +174,7 @@ export function computeRemainingWeightByAssignee(
   activeAssignments: ScopeItemAssignment[]
 ): Map<string, number> {
   const weights = computeLeafWeights(items)
-  const assigneesByItem = new Map<string, string[]>()
-  for (const a of activeAssignments) {
-    if (a.unassigned_at) continue
-    const list = assigneesByItem.get(a.scope_item_id) ?? []
-    list.push(a.profile_id)
-    assigneesByItem.set(a.scope_item_id, list)
-  }
+  const assigneesByItem = buildAssigneesByItem(activeAssignments)
 
   const totals = new Map<string, number>()
   for (const item of items) {
@@ -188,4 +193,23 @@ export function computeRemainingWeightByAssignee(
     }
   }
   return totals
+}
+
+// The actual pending leaves behind one pie slice from
+// computeRemainingWeightByAssignee — a specific person's id, or
+// UNASSIGNED_KEY — used to expand that slice into its underlying
+// checklist.
+export function getPendingItemsForAssignee(
+  items: ScopeItem[],
+  activeAssignments: ScopeItemAssignment[],
+  key: string
+): ScopeItem[] {
+  const weights = computeLeafWeights(items)
+  const assigneesByItem = buildAssigneesByItem(activeAssignments)
+  return items.filter((item) => {
+    if (item.checked_at) return false
+    if (!weights.has(item.id)) return false // not a leaf
+    const assignees = assigneesByItem.get(item.id) ?? []
+    return key === UNASSIGNED_KEY ? assignees.length === 0 : assignees.includes(key)
+  })
 }
