@@ -82,6 +82,24 @@ export function Navbar() {
                     All Properties
                   </Link>
                 )}
+                {isProjectManager && (
+                  <Link
+                    to="/kpi"
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-lg px-2 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    KPI
+                  </Link>
+                )}
+                {isAdmin && (
+                  <Link
+                    to="/logs"
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-lg px-2 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Logs
+                  </Link>
+                )}
                 {isAdmin && (
                   <Link
                     to="/admin"

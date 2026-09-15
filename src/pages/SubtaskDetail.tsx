@@ -1,11 +1,16 @@
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import { useProperty } from '../hooks/useProperty'
 import { useScopeItems } from '../hooks/useScopeItems'
+import { useScopeItemAssignments } from '../hooks/useScopeItemAssignments'
+import { useManagerProfiles } from '../hooks/useManagerProfiles'
 import { computeItemPercent, getDirectChildren } from '../lib/scopeProgress'
+import { toggleScopeItemChecked } from '../lib/scopeActions'
 import { ProgressRing } from '../components/ProgressRing'
 import { FloatingActionButton } from '../components/FloatingActionButton'
 import { AddScopeItemModal } from '../components/AddScopeItemModal'
+import { ScopeItemAssigneeControl } from '../components/ScopeItemAssigneeControl'
 import { Check, ChevronLeft } from 'lucide-react'
 import { useState } from 'react'
 import type { ScopeItem } from '../types'
@@ -18,7 +23,11 @@ export function SubtaskDetail() {
   }>()
   const { profile, isProjectManager } = useAuth()
   const canManage = isProjectManager // true for admins too, see AuthContext
+  const { property } = useProperty(propertyId)
   const { items, setItems, loading, error, setError } = useScopeItems(propertyId)
+  const { assignments, setAssignments } = useScopeItemAssignments(canManage ? propertyId : undefined)
+  const { profiles: managerProfiles } = useManagerProfiles()
+  const nameById = new Map(managerProfiles.map((p) => [p.id, p.display_name]))
 
   const [showAddSubSubtask, setShowAddSubSubtask] = useState(false)
 
@@ -27,17 +36,23 @@ export function SubtaskDetail() {
   const subsubtasks = subtask ? getDirectChildren(items, subtask.id) : []
 
   async function handleToggle(subsubtask: ScopeItem) {
-    if (!profile) return
+    if (!profile || !property) return
     const checking = !subsubtask.checked_at
-    const patch = checking
+    const optimisticPatch = checking
       ? { checked_by: profile.id, checked_at: new Date().toISOString() }
       : { checked_by: null, checked_at: null }
     const prevItems = items
-    setItems((prev) => prev.map((i) => (i.id === subsubtask.id ? { ...i, ...patch } : i)))
-    const { error: updateError } = await supabase.from('scope_items').update(patch).eq('id', subsubtask.id)
-    if (updateError) {
+    setItems((prev) => prev.map((i) => (i.id === subsubtask.id ? { ...i, ...optimisticPatch } : i)))
+    try {
+      await toggleScopeItemChecked({
+        item: subsubtask,
+        actorId: profile.id,
+        propertyId: property.id,
+        propertyName: property.name,
+      })
+    } catch (err) {
       setItems(prevItems)
-      setError(updateError.message)
+      setError(err instanceof Error ? err.message : 'Something went wrong')
     }
   }
 
@@ -89,30 +104,42 @@ export function SubtaskDetail() {
             ) : (
               <div className="flex flex-col gap-2">
                 {subsubtasks.map((subsubtask) => (
-                  <label
-                    key={subsubtask.id}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-100 bg-white p-3"
-                  >
-                    <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-200 bg-white">
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={!!subsubtask.checked_at}
-                        disabled={!canManage}
-                        onChange={() => handleToggle(subsubtask)}
+                  <div key={subsubtask.id} className="rounded-lg border border-gray-100 bg-white p-3">
+                    <label className="flex cursor-pointer items-center gap-3">
+                      <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-200 bg-white">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={!!subsubtask.checked_at}
+                          disabled={!canManage}
+                          onChange={() => handleToggle(subsubtask)}
+                        />
+                        {subsubtask.checked_at && (
+                          <span className="absolute inset-0 flex items-center justify-center rounded bg-emerald-600">
+                            <Check className="text-white" size={12} strokeWidth={3} />
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={`truncate text-sm font-medium text-gray-900 ${subsubtask.checked_at ? 'line-through opacity-70' : ''}`}
+                      >
+                        {subsubtask.title}
+                      </span>
+                    </label>
+
+                    {canManage && profile && property && (
+                      <ScopeItemAssigneeControl
+                        item={subsubtask}
+                        propertyId={property.id}
+                        propertyName={property.name}
+                        actorId={profile.id}
+                        managerProfiles={managerProfiles}
+                        nameById={nameById}
+                        assignments={assignments}
+                        setAssignments={setAssignments}
                       />
-                      {subsubtask.checked_at && (
-                        <span className="absolute inset-0 flex items-center justify-center rounded bg-emerald-600">
-                          <Check className="text-white" size={12} strokeWidth={3} />
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      className={`truncate text-sm font-medium text-gray-900 ${subsubtask.checked_at ? 'line-through opacity-70' : ''}`}
-                    >
-                      {subsubtask.title}
-                    </span>
-                  </label>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

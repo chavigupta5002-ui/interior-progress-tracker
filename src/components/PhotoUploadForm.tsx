@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import { logEntryCreated } from '../lib/scopeActions'
 import { Camera, Check, X } from 'lucide-react'
 
 interface PendingPhoto {
@@ -8,7 +9,7 @@ interface PendingPhoto {
   preview: string
 }
 
-export function PhotoUploadForm({ propertyId }: { propertyId: string }) {
+export function PhotoUploadForm({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
   const { profile } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [photos, setPhotos] = useState<PendingPhoto[]>([])
@@ -64,6 +65,8 @@ export function PhotoUploadForm({ propertyId }: { propertyId: string }) {
         uploader_name: profile.display_name,
       })
       if (insertError) throw insertError
+
+      await logEntryCreated({ propertyId, actorId: profile.id, propertyName })
 
       resetForm()
     } catch (err) {

@@ -77,7 +77,7 @@ export function PropertyUpdates() {
         <>
           <h1 className="mb-6 text-3xl font-bold text-gray-900">{property.name}</h1>
 
-          {isProjectManager && <PhotoUploadForm propertyId={property.id} />}
+          {isProjectManager && <PhotoUploadForm propertyId={property.id} propertyName={property.name} />}
 
           {entriesLoading ? (
             <p className="text-sm text-gray-500">Loading updates…</p>

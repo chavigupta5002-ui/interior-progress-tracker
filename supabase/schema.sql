@@ -438,26 +438,36 @@ create policy "Admins and PMs can delete scope items"
 --     into the UI is a separate, later change. Provisioned here so that
 --     later work doesn't need a schema migration of its own.
 -- ============================================================
+-- An assignment has a lifecycle: assigned_at when created, unassigned_at
+-- once it ends. Only one ACTIVE (unassigned_at is null) assignment per
+-- (scope_item_id, profile_id) is allowed — enforced by the partial
+-- unique index below rather than a hard table constraint, so the same
+-- profile can be assigned, unassigned, and later reassigned.
 create table if not exists public.scope_item_assignments (
   id uuid primary key default gen_random_uuid(),
   scope_item_id uuid not null references public.scope_items (id) on delete cascade,
   profile_id uuid not null references public.profiles (id) on delete cascade,
   assigned_by uuid not null references public.profiles (id),
-  created_at timestamptz not null default now(),
-  unique (scope_item_id, profile_id)
+  assigned_at timestamptz not null default now(),
+  unassigned_at timestamptz
 );
 
 create index if not exists scope_item_assignments_scope_item_id_idx
   on public.scope_item_assignments (scope_item_id);
 create index if not exists scope_item_assignments_profile_id_idx
   on public.scope_item_assignments (profile_id);
+create unique index if not exists scope_item_assignments_active_unique_idx
+  on public.scope_item_assignments (scope_item_id, profile_id)
+  where unassigned_at is null;
 
 create table if not exists public.activity_logs (
   id uuid primary key default gen_random_uuid(),
   property_id uuid not null references public.properties (id) on delete cascade,
   scope_item_id uuid references public.scope_items (id) on delete set null,
   actor_id uuid not null references public.profiles (id),
+  target_profile_id uuid references public.profiles (id),
   action text not null,
+  note text,
   detail jsonb,
   created_at timestamptz not null default now()
 );

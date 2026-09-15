@@ -2,13 +2,18 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
+import { useProperty } from '../hooks/useProperty'
 import { useScopeItems } from '../hooks/useScopeItems'
+import { useScopeItemAssignments } from '../hooks/useScopeItemAssignments'
+import { useManagerProfiles } from '../hooks/useManagerProfiles'
 import { computeItemPercent, getDirectChildren } from '../lib/scopeProgress'
+import { toggleScopeItemChecked } from '../lib/scopeActions'
 import { BatteryProgressBar } from '../components/BatteryProgressBar'
 import { ProgressRing } from '../components/ProgressRing'
 import { DeadlineStats } from '../components/DeadlineStats'
 import { FloatingActionButton } from '../components/FloatingActionButton'
 import { AddScopeItemModal } from '../components/AddScopeItemModal'
+import { ScopeItemAssigneeControl } from '../components/ScopeItemAssigneeControl'
 import { Check, ChevronLeft, ChevronRight, MoreVertical, Plus } from 'lucide-react'
 import type { ScopeItem } from '../types'
 
@@ -17,7 +22,11 @@ export function TaskDetail() {
   const navigate = useNavigate()
   const { profile, isProjectManager } = useAuth()
   const canManage = isProjectManager // true for admins too, see AuthContext
+  const { property } = useProperty(propertyId)
   const { items, setItems, loading, error, setError } = useScopeItems(propertyId)
+  const { assignments, setAssignments } = useScopeItemAssignments(canManage ? propertyId : undefined)
+  const { profiles: managerProfiles } = useManagerProfiles()
+  const nameById = new Map(managerProfiles.map((p) => [p.id, p.display_name]))
 
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [showAddSubtask, setShowAddSubtask] = useState(false)
@@ -41,30 +50,43 @@ export function TaskDetail() {
   }
 
   async function handleToggleSubtask(subtask: ScopeItem) {
-    if (!profile) return
+    if (!profile || !property) return
+    const prevItems = items
     const checking = !subtask.checked_at
-    const patch = checking
+    const optimisticPatch = checking
       ? { checked_by: profile.id, checked_at: new Date().toISOString() }
       : { checked_by: null, checked_at: null }
-    const prevItems = items
-    setItems((prev) => prev.map((i) => (i.id === subtask.id ? { ...i, ...patch } : i)))
-    const { error: updateError } = await supabase.from('scope_items').update(patch).eq('id', subtask.id)
-    if (updateError) {
+    setItems((prev) => prev.map((i) => (i.id === subtask.id ? { ...i, ...optimisticPatch } : i)))
+    try {
+      await toggleScopeItemChecked({
+        item: subtask,
+        actorId: profile.id,
+        propertyId: property.id,
+        propertyName: property.name,
+      })
+    } catch (err) {
       setItems(prevItems)
-      setError(updateError.message)
+      setError(err instanceof Error ? err.message : 'Something went wrong')
     }
   }
 
   async function handleAddSubtaskOption(subtask: ScopeItem) {
     setOpenMenuId(null)
-    if (subtask.checked_at) {
-      const patch = { checked_by: null, checked_at: null }
+    if (subtask.checked_at && profile && property) {
       const prevItems = items
-      setItems((prev) => prev.map((i) => (i.id === subtask.id ? { ...i, ...patch } : i)))
-      const { error: updateError } = await supabase.from('scope_items').update(patch).eq('id', subtask.id)
-      if (updateError) {
+      setItems((prev) =>
+        prev.map((i) => (i.id === subtask.id ? { ...i, checked_by: null, checked_at: null } : i))
+      )
+      try {
+        await toggleScopeItemChecked({
+          item: subtask,
+          actorId: profile.id,
+          propertyId: property.id,
+          propertyName: property.name,
+        })
+      } catch (err) {
         setItems(prevItems)
-        setError(updateError.message)
+        setError(err instanceof Error ? err.message : 'Something went wrong')
         return
       }
     }
@@ -154,27 +176,42 @@ export function TaskDetail() {
                           <BatteryProgressBar percent={subtaskPercent} />
                         </Link>
                       ) : (
-                        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 p-1">
-                          <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-200 bg-white">
-                            <input
-                              type="checkbox"
-                              className="sr-only"
-                              checked={!!subtask.checked_at}
-                              disabled={!canManage}
-                              onChange={() => handleToggleSubtask(subtask)}
+                        <div className="min-w-0 flex-1">
+                          <label className="flex cursor-pointer items-center gap-3 p-1">
+                            <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-200 bg-white">
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={!!subtask.checked_at}
+                                disabled={!canManage}
+                                onChange={() => handleToggleSubtask(subtask)}
+                              />
+                              {subtask.checked_at && (
+                                <span className="absolute inset-0 flex items-center justify-center rounded bg-emerald-600">
+                                  <Check className="text-white" size={12} strokeWidth={3} />
+                                </span>
+                              )}
+                            </span>
+                            <span
+                              className={`truncate text-sm font-medium text-gray-900 ${subtask.checked_at ? 'line-through opacity-70' : ''}`}
+                            >
+                              {subtask.title}
+                            </span>
+                          </label>
+
+                          {canManage && profile && property && (
+                            <ScopeItemAssigneeControl
+                              item={subtask}
+                              propertyId={property.id}
+                              propertyName={property.name}
+                              actorId={profile.id}
+                              managerProfiles={managerProfiles}
+                              nameById={nameById}
+                              assignments={assignments}
+                              setAssignments={setAssignments}
                             />
-                            {subtask.checked_at && (
-                              <span className="absolute inset-0 flex items-center justify-center rounded bg-emerald-600">
-                                <Check className="text-white" size={12} strokeWidth={3} />
-                              </span>
-                            )}
-                          </span>
-                          <span
-                            className={`truncate text-sm font-medium text-gray-900 ${subtask.checked_at ? 'line-through opacity-70' : ''}`}
-                          >
-                            {subtask.title}
-                          </span>
-                        </label>
+                          )}
+                        </div>
                       )}
 
                       {canManage && (

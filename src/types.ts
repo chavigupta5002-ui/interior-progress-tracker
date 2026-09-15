@@ -55,3 +55,37 @@ export interface ScopeItem {
   created_by: string
   created_at: string
 }
+
+// A person's assignment to a scope_item. An assignment has a lifecycle:
+// assigned_at when created, unassigned_at once it ends. Only one ACTIVE
+// (unassigned_at === null) row per (scope_item_id, profile_id) can exist
+// at a time — enforced by a partial unique index in the database — so a
+// profile can be assigned, unassigned, and later reassigned to the same
+// item, with the full history preserved.
+export interface ScopeItemAssignment {
+  id: string
+  scope_item_id: string
+  profile_id: string
+  assigned_by: string
+  assigned_at: string
+  unassigned_at: string | null
+}
+
+export type ActivityAction =
+  | 'item_checked'
+  | 'item_unchecked'
+  | 'item_assigned'
+  | 'item_unassigned'
+  | 'entry_created'
+
+export interface ActivityLog {
+  id: string
+  property_id: string
+  scope_item_id: string | null
+  actor_id: string
+  target_profile_id: string | null
+  action: ActivityAction
+  note: string | null
+  detail: Record<string, unknown> | null
+  created_at: string
+}

@@ -2,7 +2,7 @@
 // on-screen Reports page and the PDF export, so both always match.
 
 import type { Entry, ScopeItem } from '../types'
-import { computePropertyPercentAsOf } from './scopeProgress'
+import { buildItemIndex, computePropertyPercentAsOf, getTopLevelAncestor } from './scopeProgress'
 
 export function toDateKey(iso: string): string {
   const d = new Date(iso)
@@ -76,19 +76,9 @@ export function buildDayReports(
   photoUrlResolver: (path: string) => string
 ): DayReport[] {
   const sortedDateKeys = [...new Set(dateKeys)].sort().reverse()
-  const byId = new Map(scopeItems.map((item) => [item.id, item]))
+  const byId = buildItemIndex(scopeItems)
   const tasks = [...scopeItems.filter((i) => i.level === 1)].sort((a, b) => a.position - b.position)
   const taskOrder = new Map(tasks.map((task, index) => [task.id, index]))
-
-  function topLevelAncestor(item: ScopeItem): ScopeItem {
-    let current = item
-    while (current.parent_id) {
-      const parent = byId.get(current.parent_id)
-      if (!parent) break
-      current = parent
-    }
-    return current
-  }
 
   return sortedDateKeys.map((dateKey) => {
     const cutoff = endOfDayCutoff(dateKey)
@@ -97,7 +87,7 @@ export function buildDayReports(
     const checkedThisDay = scopeItems.filter((item) => item.checked_at && toDateKey(item.checked_at) === dateKey)
     const sectionsByTask = new Map<string, DayChecklistSection>()
     for (const item of checkedThisDay) {
-      const task = topLevelAncestor(item)
+      const task = getTopLevelAncestor(item, byId)
       if (!sectionsByTask.has(task.id)) {
         sectionsByTask.set(task.id, { taskId: task.id, taskTitle: task.title, items: [] })
       }

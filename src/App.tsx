@@ -11,6 +11,8 @@ import { SubtaskDetail } from './pages/SubtaskDetail'
 import { PropertyUpdates } from './pages/PropertyUpdates'
 import { Reports } from './pages/Reports'
 import { Admin } from './pages/Admin'
+import { Kpi } from './pages/Kpi'
+import { Logs } from './pages/Logs'
 
 export default function App() {
   return (
@@ -75,6 +77,22 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <Admin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/kpi"
+                element={
+                  <ProtectedRoute>
+                    <Kpi />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/logs"
+                element={
+                  <ProtectedRoute>
+                    <Logs />
                   </ProtectedRoute>
                 }
               />

@@ -82,3 +82,28 @@ export function countCompleteDirectChildren(
   const complete = children.filter((child) => computeItemPercent(child, items, index) === 100).length
   return { complete, total: children.length }
 }
+
+export function isLeafItem(
+  item: ScopeItem,
+  items: ScopeItem[],
+  childrenIndex?: Map<string, ScopeItem[]>
+): boolean {
+  const index = childrenIndex ?? buildChildrenIndex(items)
+  return (index.get(item.id) ?? []).length === 0
+}
+
+export function buildItemIndex(items: ScopeItem[]): Map<string, ScopeItem> {
+  return new Map(items.map((item) => [item.id, item]))
+}
+
+// Walks parent_id up to the level-1 Task an item ultimately belongs to
+// (an item is its own ancestor when it's already level 1).
+export function getTopLevelAncestor(item: ScopeItem, itemsById: Map<string, ScopeItem>): ScopeItem {
+  let current = item
+  while (current.parent_id) {
+    const parent = itemsById.get(current.parent_id)
+    if (!parent) break
+    current = parent
+  }
+  return current
+}
