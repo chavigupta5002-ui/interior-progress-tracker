@@ -133,23 +133,25 @@ export async function exportReportToPdf(
     doc.text(`${day.progressPercent}% complete`, MARGIN, y)
     y += 16
 
-    // Checklist — fully expanded in the PDF, no collapsing.
+    // Checklist — fully expanded in the PDF, no collapsing. Each section
+    // rolls up every checked item (Subtask or Sub-subtask) under its
+    // top-level Task.
     if (day.checklistSections.length > 0) {
       for (const section of day.checklistSections) {
         ensureSpace(18)
         doc.setFontSize(11)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(GRAY_900.r, GRAY_900.g, GRAY_900.b)
-        doc.text(section.headerTitle, MARGIN, y)
+        doc.text(section.taskTitle, MARGIN, y)
         doc.setFont('helvetica', 'normal')
         y += 15
-        for (const point of section.points) {
+        for (const item of section.items) {
           ensureSpace(14)
           doc.setFontSize(10)
           doc.setTextColor(EMERALD.r, EMERALD.g, EMERALD.b)
           doc.text('✓', MARGIN + 4, y)
           doc.setTextColor(GRAY_700.r, GRAY_700.g, GRAY_700.b)
-          doc.text(point.title, MARGIN + 16, y)
+          doc.text(item.title, MARGIN + 16, y)
           y += 13
         }
         y += 6

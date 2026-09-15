@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, PHOTOS_BUCKET } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import type { Entry, Property, ScopeHeader, ScopePoint } from '../types'
+import type { Entry, Property, ScopeItem } from '../types'
 import { Carousel } from '../components/Carousel'
 import { ProgressBar } from '../components/ProgressBar'
 import { exportReportToPdf } from '../lib/pdf'
@@ -36,8 +36,7 @@ export function Reports() {
   const [multiDates, setMultiDates] = useState<string[]>([])
 
   const [allEntries, setAllEntries] = useState<Entry[]>([])
-  const [scopeHeaders, setScopeHeaders] = useState<ScopeHeader[]>([])
-  const [scopePoints, setScopePoints] = useState<ScopePoint[]>([])
+  const [scopeItems, setScopeItems] = useState<ScopeItem[]>([])
   const [loading, setLoading] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -69,11 +68,10 @@ export function Reports() {
     return buildDayReports(
       dateKeys,
       allEntries,
-      scopeHeaders,
-      scopePoints,
+      scopeItems,
       (path) => supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(path).data.publicUrl
     )
-  }, [hasGenerated, dateKeys, allEntries, scopeHeaders, scopePoints])
+  }, [hasGenerated, dateKeys, allEntries, scopeItems])
 
   function addMultiDate() {
     if (!multiInput) return
@@ -90,20 +88,18 @@ export function Reports() {
     setLoading(true)
     setHasGenerated(true)
     setGenerateError(null)
-    const [entriesRes, headersRes, pointsRes] = await Promise.all([
+    const [entriesRes, itemsRes] = await Promise.all([
       supabase.from('entries').select('*').eq('property_id', propertyId).order('created_at', { ascending: false }),
-      supabase.from('scope_headers').select('*').eq('property_id', propertyId).order('position'),
-      supabase.from('scope_points').select('*').eq('property_id', propertyId).order('position'),
+      supabase.from('scope_items').select('*').eq('property_id', propertyId).order('level').order('position'),
     ])
-    const firstError = entriesRes.error ?? headersRes.error ?? pointsRes.error
+    const firstError = entriesRes.error ?? itemsRes.error
     if (firstError) {
       setGenerateError(firstError.message)
       setLoading(false)
       return
     }
     setAllEntries(entriesRes.data ?? [])
-    setScopeHeaders(headersRes.data ?? [])
-    setScopePoints(pointsRes.data ?? [])
+    setScopeItems(itemsRes.data ?? [])
     setGeneratedAt(new Date())
     setLoading(false)
   }
@@ -304,23 +300,23 @@ export function Reports() {
                     {day.checklistSections.length > 0 && (
                       <div className="mt-4 flex flex-col gap-2">
                         {day.checklistSections.map((section) => (
-                          <details key={section.headerId} className="group rounded-lg border border-gray-100 p-3">
+                          <details key={section.taskId} className="group rounded-lg border border-gray-100 p-3">
                             <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
                               <div className="flex items-center gap-2">
                                 <ChevronRight
                                   className="text-gray-400 transition-transform group-open:rotate-90"
                                   size={14}
                                 />
-                                <span className="text-sm font-semibold text-gray-900">{section.headerTitle}</span>
+                                <span className="text-sm font-semibold text-gray-900">{section.taskTitle}</span>
                               </div>
                               <span className="text-[11px] font-medium text-gray-500">
-                                {section.points.length} completed
+                                {section.items.length} completed
                               </span>
                             </summary>
                             <ul className="mt-2 flex flex-col gap-1 pl-6">
-                              {section.points.map((point) => (
-                                <li key={point.id} className="text-sm text-gray-700">
-                                  {point.title}
+                              {section.items.map((item) => (
+                                <li key={item.id} className="text-sm text-gray-700">
+                                  {item.title}
                                 </li>
                               ))}
                             </ul>

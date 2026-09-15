@@ -27,5 +27,5 @@ export function useProperty(propertyId: string | undefined) {
     }
   }, [propertyId])
 
-  return { property, loading }
+  return { property, loading, setProperty }
 }

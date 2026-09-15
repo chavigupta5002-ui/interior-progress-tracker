@@ -14,6 +14,7 @@ export interface Property {
   name: string
   description: string | null
   property_type: PropertyType
+  deadline: string | null
   created_by: string
   created_at: string
 }
@@ -36,21 +37,19 @@ export interface PropertyAccess {
   created_at: string
 }
 
-export interface ScopeHeader {
-  id: string
-  property_id: string
-  title: string
-  position: number
-  created_by: string
-  created_at: string
-}
+// Scope of Work tree: level 1 = Task (parent_id null), level 2 = Subtask
+// (parent must be a level-1 row), level 3 = Sub-subtask (parent must be a
+// level-2 row). The database enforces this hierarchy.
+export type ScopeItemLevel = 1 | 2 | 3
 
-export interface ScopePoint {
+export interface ScopeItem {
   id: string
-  header_id: string
   property_id: string
+  parent_id: string | null
+  level: ScopeItemLevel
   title: string
   position: number
+  deadline: string | null
   checked_by: string | null
   checked_at: string | null
   created_by: string

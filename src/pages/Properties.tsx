@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import type { Property, PropertyType } from '../types'
 import { PROPERTY_TYPE_ICON, PROPERTY_TYPES } from '../lib/propertyTypes'
-import { Plus } from 'lucide-react'
+import { FloatingActionButton } from '../components/FloatingActionButton'
+import { X } from 'lucide-react'
 
 export function Properties() {
   const { profile, isProjectManager } = useAuth()
@@ -78,22 +79,6 @@ export function Properties() {
         <h1 className="text-3xl font-bold text-gray-900">
           {properties.length === 1 ? 'Property' : 'Properties'}
         </h1>
-        {isProjectManager && (
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded-xl bg-[#FFD700] px-4 py-2.5 text-sm font-semibold text-black shadow-sm transition-all hover:bg-yellow-400 focus:ring-4 focus:ring-yellow-100 focus:outline-none"
-            onClick={() => setShowForm((v) => !v)}
-          >
-            {showForm ? (
-              'Cancel'
-            ) : (
-              <>
-                <Plus size={16} />
-                New
-              </>
-            )}
-          </button>
-        )}
       </div>
 
       {showForm && (
@@ -101,6 +86,17 @@ export function Properties() {
           className="mb-5 flex flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]"
           onSubmit={handleCreate}
         >
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-base font-semibold text-gray-900">New property</span>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              aria-label="Close"
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            >
+              <X size={18} />
+            </button>
+          </div>
           <label className="mb-4 flex flex-col gap-1.5 text-sm font-medium text-gray-700">
             Property name
             <input
@@ -218,6 +214,10 @@ export function Properties() {
             </Link>
           ))}
         </div>
+      )}
+
+      {isProjectManager && (
+        <FloatingActionButton label="Add property" onClick={() => setShowForm(true)} />
       )}
     </div>
   )

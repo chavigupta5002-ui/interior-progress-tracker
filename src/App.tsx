@@ -6,7 +6,8 @@ import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { Properties } from './pages/Properties'
 import { PropertyDetail } from './pages/PropertyDetail'
-import { PropertyScope } from './pages/PropertyScope'
+import { TaskDetail } from './pages/TaskDetail'
+import { SubtaskDetail } from './pages/SubtaskDetail'
 import { PropertyUpdates } from './pages/PropertyUpdates'
 import { Reports } from './pages/Reports'
 import { Admin } from './pages/Admin'
@@ -38,10 +39,18 @@ export default function App() {
                 }
               />
               <Route
-                path="/properties/:propertyId/scope"
+                path="/properties/:propertyId/tasks/:taskId"
                 element={
                   <ProtectedRoute>
-                    <PropertyScope />
+                    <TaskDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/properties/:propertyId/tasks/:taskId/subtasks/:subtaskId"
+                element={
+                  <ProtectedRoute>
+                    <SubtaskDetail />
                   </ProtectedRoute>
                 }
               />

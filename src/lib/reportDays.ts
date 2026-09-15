@@ -1,7 +1,8 @@
 // Builds the "one card per calendar day" report structure shared by the
 // on-screen Reports page and the PDF export, so both always match.
 
-import type { Entry, ScopeHeader, ScopePoint } from '../types'
+import type { Entry, ScopeItem } from '../types'
+import { computePropertyPercentAsOf } from './scopeProgress'
 
 export function toDateKey(iso: string): string {
   const d = new Date(iso)
@@ -19,9 +20,9 @@ export function dateKeyLabel(dateKey: string): string {
   })
 }
 
-function endOfDayCutoff(dateKey: string): number {
+function endOfDayCutoff(dateKey: string): Date {
   const [y, m, d] = dateKey.split('-').map(Number)
-  return new Date(y, m - 1, d, 23, 59, 59, 999).getTime()
+  return new Date(y, m - 1, d, 23, 59, 59, 999)
 }
 
 // Every calendar day from start to end, inclusive.
@@ -40,10 +41,13 @@ export function enumerateDateRange(start: string, end: string): string[] {
   return result
 }
 
+// Items checked on a given day, rolled up under their top-level Task —
+// walking the 3-level tree so a checked Subtask or Sub-subtask still
+// lands in the right Task's section.
 export interface DayChecklistSection {
-  headerId: string
-  headerTitle: string
-  points: { id: string; title: string; checkedAt: string }[]
+  taskId: string
+  taskTitle: string
+  items: { id: string; title: string; checkedAt: string }[]
 }
 
 export interface DayNote {
@@ -68,40 +72,39 @@ export interface DayReport {
 export function buildDayReports(
   dateKeys: string[],
   entries: Entry[],
-  headers: ScopeHeader[],
-  points: ScopePoint[],
+  scopeItems: ScopeItem[],
   photoUrlResolver: (path: string) => string
 ): DayReport[] {
   const sortedDateKeys = [...new Set(dateKeys)].sort().reverse()
-  const totalPoints = points.length
-  const headerOrder = new Map(headers.map((h, i) => [h.id, i]))
-  const orderedHeaders = [...headers].sort((a, b) => a.position - b.position)
+  const byId = new Map(scopeItems.map((item) => [item.id, item]))
+  const tasks = [...scopeItems.filter((i) => i.level === 1)].sort((a, b) => a.position - b.position)
+  const taskOrder = new Map(tasks.map((task, index) => [task.id, index]))
+
+  function topLevelAncestor(item: ScopeItem): ScopeItem {
+    let current = item
+    while (current.parent_id) {
+      const parent = byId.get(current.parent_id)
+      if (!parent) break
+      current = parent
+    }
+    return current
+  }
 
   return sortedDateKeys.map((dateKey) => {
     const cutoff = endOfDayCutoff(dateKey)
+    const progressPercent = Math.round(computePropertyPercentAsOf(scopeItems, cutoff) * 10) / 10
 
-    const checkedUpToDay = points.filter(
-      (p) => p.checked_at && new Date(p.checked_at).getTime() <= cutoff
-    )
-    const progressPercent =
-      totalPoints === 0 ? 0 : Math.round((checkedUpToDay.length / totalPoints) * 1000) / 10
-
-    const pointsCheckedThisDay = points.filter((p) => p.checked_at && toDateKey(p.checked_at) === dateKey)
-    const sectionsByHeader = new Map<string, DayChecklistSection>()
-    for (const point of pointsCheckedThisDay) {
-      const header = orderedHeaders.find((h) => h.id === point.header_id)
-      if (!header) continue
-      if (!sectionsByHeader.has(header.id)) {
-        sectionsByHeader.set(header.id, { headerId: header.id, headerTitle: header.title, points: [] })
+    const checkedThisDay = scopeItems.filter((item) => item.checked_at && toDateKey(item.checked_at) === dateKey)
+    const sectionsByTask = new Map<string, DayChecklistSection>()
+    for (const item of checkedThisDay) {
+      const task = topLevelAncestor(item)
+      if (!sectionsByTask.has(task.id)) {
+        sectionsByTask.set(task.id, { taskId: task.id, taskTitle: task.title, items: [] })
       }
-      sectionsByHeader.get(header.id)!.points.push({
-        id: point.id,
-        title: point.title,
-        checkedAt: point.checked_at!,
-      })
+      sectionsByTask.get(task.id)!.items.push({ id: item.id, title: item.title, checkedAt: item.checked_at! })
     }
-    const checklistSections = [...sectionsByHeader.values()].sort(
-      (a, b) => (headerOrder.get(a.headerId) ?? 0) - (headerOrder.get(b.headerId) ?? 0)
+    const checklistSections = [...sectionsByTask.values()].sort(
+      (a, b) => (taskOrder.get(a.taskId) ?? 0) - (taskOrder.get(b.taskId) ?? 0)
     )
 
     const entriesThisDay = entries.filter((e) => toDateKey(e.created_at) === dateKey)
