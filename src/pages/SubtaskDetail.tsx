@@ -5,13 +5,14 @@ import { useProperty } from '../hooks/useProperty'
 import { useScopeItems } from '../hooks/useScopeItems'
 import { useScopeItemAssignments } from '../hooks/useScopeItemAssignments'
 import { useManagerProfiles } from '../hooks/useManagerProfiles'
-import { computeItemPercent, getDirectChildren } from '../lib/scopeProgress'
-import { deleteScopeItemWithDescendants, toggleScopeItemChecked } from '../lib/scopeActions'
+import { computeItemPercent, getAllDescendants, getDirectChildren } from '../lib/scopeProgress'
+import { deleteScopeItemWithDescendants, renameScopeItem, toggleScopeItemChecked } from '../lib/scopeActions'
 import { ProgressRing } from '../components/ProgressRing'
 import { FloatingActionButton } from '../components/FloatingActionButton'
 import { AddScopeItemModal } from '../components/AddScopeItemModal'
+import { EditScopeItemModal } from '../components/EditScopeItemModal'
 import { ScopeItemAssigneeControl } from '../components/ScopeItemAssigneeControl'
-import { Check, ChevronLeft, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, MoreVertical } from 'lucide-react'
 import { useState } from 'react'
 import type { ScopeItem } from '../types'
 
@@ -30,7 +31,8 @@ export function SubtaskDetail() {
   const nameById = new Map(managerProfiles.map((p) => [p.id, p.display_name]))
 
   const [showAddSubSubtask, setShowAddSubSubtask] = useState(false)
-  const [deletingSubsubtaskId, setDeletingSubsubtaskId] = useState<string | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [editingSubsubtask, setEditingSubsubtask] = useState<ScopeItem | null>(null)
 
   const subtask = items.find((i) => i.id === subtaskId && i.level === 2)
   const subtaskPercent = subtask ? computeItemPercent(subtask, items) : 0
@@ -72,22 +74,24 @@ export function SubtaskDetail() {
 
   async function handleDeleteSubsubtask(subsubtask: ScopeItem) {
     if (!profile || !property) return
-    if (!window.confirm(`Delete "${subsubtask.title}"? This cannot be undone.`)) return
+    await deleteScopeItemWithDescendants({
+      item: subsubtask,
+      items,
+      actorId: profile.id,
+      propertyId: property.id,
+    })
+    setItems((prev) => prev.filter((i) => i.id !== subsubtask.id))
+  }
 
-    setDeletingSubsubtaskId(subsubtask.id)
-    setError(null)
+  async function handleRenameSubsubtask(subsubtask: ScopeItem, newTitle: string) {
+    if (!profile || !property) return
+    const prevItems = items
+    setItems((prev) => prev.map((i) => (i.id === subsubtask.id ? { ...i, title: newTitle } : i)))
     try {
-      await deleteScopeItemWithDescendants({
-        item: subsubtask,
-        items,
-        actorId: profile.id,
-        propertyId: property.id,
-      })
-      setItems((prev) => prev.filter((i) => i.id !== subsubtask.id))
+      await renameScopeItem({ item: subsubtask, items, newTitle, actorId: profile.id, propertyId: property.id })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setDeletingSubsubtaskId(null)
+      setItems(prevItems)
+      throw err
     }
   }
 
@@ -151,15 +155,33 @@ export function SubtaskDetail() {
                       </label>
 
                       {isAdmin && (
-                        <button
-                          type="button"
-                          className="flex-shrink-0 rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                          onClick={() => handleDeleteSubsubtask(subsubtask)}
-                          disabled={deletingSubsubtaskId === subsubtask.id}
-                          aria-label={`Delete ${subsubtask.title}`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="relative flex-shrink-0">
+                          <button
+                            type="button"
+                            className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                            aria-label="More options"
+                            onClick={() => setOpenMenuId((id) => (id === subsubtask.id ? null : subsubtask.id))}
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {openMenuId === subsubtask.id && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                              <div className="absolute right-0 z-20 mt-1 w-32 rounded-lg border border-gray-100 bg-white p-1 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.15)]">
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                  onClick={() => {
+                                    setOpenMenuId(null)
+                                    setEditingSubsubtask(subsubtask)
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -191,6 +213,16 @@ export function SubtaskDetail() {
               titlePlaceholder="Sub-subtask title"
               onClose={() => setShowAddSubSubtask(false)}
               onSubmit={handleAddSubSubtask}
+            />
+          )}
+
+          {editingSubsubtask && (
+            <EditScopeItemModal
+              item={editingSubsubtask}
+              descendantCount={getAllDescendants(editingSubsubtask, items).length}
+              onClose={() => setEditingSubsubtask(null)}
+              onSave={(newTitle) => handleRenameSubsubtask(editingSubsubtask, newTitle)}
+              onDelete={() => handleDeleteSubsubtask(editingSubsubtask)}
             />
           )}
         </>

@@ -39,6 +39,14 @@ export function formatActivityLogLine(
     return `${actorName} deleted '${path}'${propertySegment} · ${when}`
   }
 
+  if (log.action === 'item_renamed') {
+    // note is self-contained ("Old title → New title (Full > Path)") so
+    // this reads fine even if the item has since been deleted or moved.
+    const summary = log.note ?? 'a scope item'
+    const propertySegment = property ? ` · ${property.name}` : ''
+    return `${actorName} renamed ${summary}${propertySegment} · ${when}`
+  }
+
   const item = log.scope_item_id ? ctx.itemsById.get(log.scope_item_id) : undefined
 
   if (item && property) {

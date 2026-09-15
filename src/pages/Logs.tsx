@@ -11,6 +11,7 @@ const ACTION_LABELS: Record<ActivityAction, string> = {
   item_assigned: 'Assigned',
   item_unassigned: 'Unassigned',
   item_deleted: 'Deleted',
+  item_renamed: 'Renamed',
   entry_created: 'Update added',
 }
 

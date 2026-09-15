@@ -154,6 +154,38 @@ export async function deleteScopeItemWithDescendants(params: {
   }
 }
 
+// Renames a scope item and logs item_renamed with a self-contained note
+// ("Old title → New title (Full > Path)") so the Logs page stays
+// readable even if the item is later deleted or moved. A no-op (no DB
+// write, no log) when the trimmed title is unchanged.
+export async function renameScopeItem(params: {
+  item: ScopeItem
+  items: ScopeItem[]
+  newTitle: string
+  actorId: string
+  propertyId: string
+}): Promise<void> {
+  const { item, items, newTitle, actorId, propertyId } = params
+  const trimmed = newTitle.trim()
+  if (!trimmed || trimmed === item.title) return
+
+  const { error } = await supabase.from('scope_items').update({ title: trimmed }).eq('id', item.id)
+  if (error) throw error
+
+  const itemsById = buildItemIndex(items)
+  const renamedItem = { ...item, title: trimmed }
+  itemsById.set(item.id, renamedItem)
+  const path = getItemPath(renamedItem, itemsById)
+
+  await logActivity({
+    propertyId,
+    actorId,
+    action: 'item_renamed',
+    scopeItemId: item.id,
+    note: `${item.title} → ${trimmed} (${path})`,
+  })
+}
+
 // Logs a new photo/note entry — called from PhotoUploadForm right after
 // the entries insert succeeds.
 export async function logEntryCreated(params: {

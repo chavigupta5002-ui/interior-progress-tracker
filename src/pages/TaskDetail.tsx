@@ -7,14 +7,15 @@ import { useScopeItems } from '../hooks/useScopeItems'
 import { useScopeItemAssignments } from '../hooks/useScopeItemAssignments'
 import { useManagerProfiles } from '../hooks/useManagerProfiles'
 import { computeItemPercent, getAllDescendants, getDirectChildren } from '../lib/scopeProgress'
-import { deleteScopeItemWithDescendants, toggleScopeItemChecked } from '../lib/scopeActions'
+import { deleteScopeItemWithDescendants, renameScopeItem, toggleScopeItemChecked } from '../lib/scopeActions'
 import { BatteryProgressBar } from '../components/BatteryProgressBar'
 import { ProgressRing } from '../components/ProgressRing'
 import { DeadlineStats } from '../components/DeadlineStats'
 import { FloatingActionButton } from '../components/FloatingActionButton'
 import { AddScopeItemModal } from '../components/AddScopeItemModal'
+import { EditScopeItemModal } from '../components/EditScopeItemModal'
 import { ScopeItemAssigneeControl } from '../components/ScopeItemAssigneeControl'
-import { Check, ChevronLeft, ChevronRight, MoreVertical, Plus, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, MoreVertical, Plus } from 'lucide-react'
 import type { ScopeItem } from '../types'
 
 export function TaskDetail() {
@@ -31,7 +32,7 @@ export function TaskDetail() {
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [showAddSubtask, setShowAddSubtask] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-  const [deletingSubtaskId, setDeletingSubtaskId] = useState<string | null>(null)
+  const [editingSubtask, setEditingSubtask] = useState<ScopeItem | null>(null)
 
   const task = items.find((i) => i.id === taskId && i.level === 1)
   const taskPercent = task ? computeItemPercent(task, items) : 0
@@ -110,27 +111,25 @@ export function TaskDetail() {
   async function handleDeleteSubtask(subtask: ScopeItem) {
     if (!profile || !property) return
     const descendants = getAllDescendants(subtask, items)
-    const message =
-      descendants.length === 0
-        ? `Delete "${subtask.title}"? This cannot be undone.`
-        : `Delete "${subtask.title}" and its ${descendants.length} subtask${descendants.length === 1 ? '' : 's'}? This cannot be undone.`
-    if (!window.confirm(message)) return
+    await deleteScopeItemWithDescendants({
+      item: subtask,
+      items,
+      actorId: profile.id,
+      propertyId: property.id,
+    })
+    const removedIds = new Set([subtask.id, ...descendants.map((d) => d.id)])
+    setItems((prev) => prev.filter((i) => !removedIds.has(i.id)))
+  }
 
-    setDeletingSubtaskId(subtask.id)
-    setError(null)
+  async function handleRenameSubtask(subtask: ScopeItem, newTitle: string) {
+    if (!profile || !property) return
+    const prevItems = items
+    setItems((prev) => prev.map((i) => (i.id === subtask.id ? { ...i, title: newTitle } : i)))
     try {
-      await deleteScopeItemWithDescendants({
-        item: subtask,
-        items,
-        actorId: profile.id,
-        propertyId: property.id,
-      })
-      const removedIds = new Set([subtask.id, ...descendants.map((d) => d.id)])
-      setItems((prev) => prev.filter((i) => !removedIds.has(i.id)))
+      await renameScopeItem({ item: subtask, items, newTitle, actorId: profile.id, propertyId: property.id })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setDeletingSubtaskId(null)
+      setItems(prevItems)
+      throw err
     }
   }
 
@@ -264,22 +263,22 @@ export function TaskDetail() {
                                   <Plus size={14} />
                                   Add Subtask
                                 </button>
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                    onClick={() => {
+                                      setOpenMenuId(null)
+                                      setEditingSubtask(subtask)
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
                               </div>
                             </>
                           )}
                         </div>
-                      )}
-
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          className="flex-shrink-0 rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                          onClick={() => handleDeleteSubtask(subtask)}
-                          disabled={deletingSubtaskId === subtask.id}
-                          aria-label={`Delete ${subtask.title}`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
                       )}
                     </div>
                   )
@@ -296,6 +295,16 @@ export function TaskDetail() {
               titlePlaceholder="Subtask title"
               onClose={() => setShowAddSubtask(false)}
               onSubmit={handleAddSubtask}
+            />
+          )}
+
+          {editingSubtask && (
+            <EditScopeItemModal
+              item={editingSubtask}
+              descendantCount={getAllDescendants(editingSubtask, items).length}
+              onClose={() => setEditingSubtask(null)}
+              onSave={(newTitle) => handleRenameSubtask(editingSubtask, newTitle)}
+              onDelete={() => handleDeleteSubtask(editingSubtask)}
             />
           )}
         </>

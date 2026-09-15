@@ -10,13 +10,14 @@ import {
   countCompleteDirectChildren,
   getAllDescendants,
 } from '../lib/scopeProgress'
-import { deleteScopeItemWithDescendants } from '../lib/scopeActions'
+import { deleteScopeItemWithDescendants, renameScopeItem } from '../lib/scopeActions'
 import { BatteryProgressBar } from '../components/BatteryProgressBar'
 import { DeadlineStats } from '../components/DeadlineStats'
 import { FloatingActionButton } from '../components/FloatingActionButton'
 import { AddScopeItemModal } from '../components/AddScopeItemModal'
+import { EditScopeItemModal } from '../components/EditScopeItemModal'
 import { CongratsModal } from '../components/CongratsModal'
-import { Camera, ChevronLeft, ChevronRight, FileText, Trash2 } from 'lucide-react'
+import { Camera, ChevronLeft, ChevronRight, FileText, MoreVertical, Trash2 } from 'lucide-react'
 import type { ScopeItem } from '../types'
 
 export function PropertyDetail() {
@@ -24,13 +25,13 @@ export function PropertyDetail() {
   const navigate = useNavigate()
   const { profile, isAdmin, isProjectManager } = useAuth()
   const { property, loading, setProperty } = useProperty(propertyId)
-  const { items, setItems, loading: itemsLoading, error: itemsError, setError: setItemsError } =
-    useScopeItems(propertyId)
+  const { items, setItems, loading: itemsLoading, error: itemsError } = useScopeItems(propertyId)
   const canManage = isProjectManager // true for admins too, see AuthContext
 
   const [deletingProperty, setDeletingProperty] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null)
+  const [openMenuTaskId, setOpenMenuTaskId] = useState<string | null>(null)
+  const [editingTask, setEditingTask] = useState<ScopeItem | null>(null)
   const [savingDeadline, setSavingDeadline] = useState(false)
   const [showAddTask, setShowAddTask] = useState(false)
   const [showCongrats, setShowCongrats] = useState(false)
@@ -110,27 +111,25 @@ export function PropertyDetail() {
   async function handleDeleteTask(task: ScopeItem) {
     if (!profile || !property) return
     const descendants = getAllDescendants(task, items)
-    const message =
-      descendants.length === 0
-        ? `Delete "${task.title}"? This cannot be undone.`
-        : `Delete "${task.title}" and its ${descendants.length} subtask${descendants.length === 1 ? '' : 's'}? This cannot be undone.`
-    if (!window.confirm(message)) return
+    await deleteScopeItemWithDescendants({
+      item: task,
+      items,
+      actorId: profile.id,
+      propertyId: property.id,
+    })
+    const removedIds = new Set([task.id, ...descendants.map((d) => d.id)])
+    setItems((prev) => prev.filter((i) => !removedIds.has(i.id)))
+  }
 
-    setDeletingTaskId(task.id)
-    setItemsError(null)
+  async function handleRenameTask(task: ScopeItem, newTitle: string) {
+    if (!profile || !property) return
+    const prevItems = items
+    setItems((prev) => prev.map((i) => (i.id === task.id ? { ...i, title: newTitle } : i)))
     try {
-      await deleteScopeItemWithDescendants({
-        item: task,
-        items,
-        actorId: profile.id,
-        propertyId: property.id,
-      })
-      const removedIds = new Set([task.id, ...descendants.map((d) => d.id)])
-      setItems((prev) => prev.filter((i) => !removedIds.has(i.id)))
+      await renameScopeItem({ item: task, items, newTitle, actorId: profile.id, propertyId: property.id })
     } catch (err) {
-      setItemsError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setDeletingTaskId(null)
+      setItems(prevItems)
+      throw err
     }
   }
 
@@ -244,15 +243,33 @@ export function PropertyDetail() {
                         <BatteryProgressBar percent={taskPercent} />
                       </Link>
                       {isAdmin && (
-                        <button
-                          type="button"
-                          className="flex-shrink-0 rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                          onClick={() => handleDeleteTask(task)}
-                          disabled={deletingTaskId === task.id}
-                          aria-label={`Delete ${task.title}`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="relative flex-shrink-0">
+                          <button
+                            type="button"
+                            className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                            aria-label="More options"
+                            onClick={() => setOpenMenuTaskId((id) => (id === task.id ? null : task.id))}
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {openMenuTaskId === task.id && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setOpenMenuTaskId(null)} />
+                              <div className="absolute right-0 z-20 mt-1 w-32 rounded-lg border border-gray-100 bg-white p-1 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.15)]">
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                  onClick={() => {
+                                    setOpenMenuTaskId(null)
+                                    setEditingTask(task)
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   )
@@ -299,6 +316,16 @@ export function PropertyDetail() {
 
           {showCongrats && (
             <CongratsModal propertyName={property.name} onClose={() => setShowCongrats(false)} />
+          )}
+
+          {editingTask && (
+            <EditScopeItemModal
+              item={editingTask}
+              descendantCount={getAllDescendants(editingTask, items).length}
+              onClose={() => setEditingTask(null)}
+              onSave={(newTitle) => handleRenameTask(editingTask, newTitle)}
+              onDelete={() => handleDeleteTask(editingTask)}
+            />
           )}
         </>
       )}
