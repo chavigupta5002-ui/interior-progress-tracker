@@ -304,6 +304,7 @@ export function Kpi() {
                         return (
                           <details
                             key={header.taskId}
+                            open
                             className="group rounded-lg border border-gray-100 bg-white p-3"
                           >
                             <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
