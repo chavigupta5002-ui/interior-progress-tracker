@@ -10,6 +10,7 @@ interface AuthContextValue {
   loading: boolean
   isProjectManager: boolean
   isAdmin: boolean
+  isDev: boolean
   signUp: (email: string, password: string, displayName: string, role: Role) => Promise<{ error: string | null }>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -96,9 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: session?.user ?? null,
     profile,
     loading,
-    // Admins have at least the same upload/manage capabilities as PMs (see RLS policies).
-    isProjectManager: profile?.role === 'project_manager' || profile?.role === 'admin',
-    isAdmin: profile?.role === 'admin',
+    // Admins have at least the same upload/manage capabilities as PMs
+    // (see RLS policies). dev is a hidden superset of admin — it passes
+    // every admin/PM check the same way, so no other component needs to
+    // know about it; isDev below is only for dev's few exclusive extras
+    // (deleting activity_logs rows, deleting a profile outright).
+    isProjectManager:
+      profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'dev',
+    isAdmin: profile?.role === 'admin' || profile?.role === 'dev',
+    isDev: profile?.role === 'dev',
     signUp,
     signIn,
     signOut,

@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import type { Profile, Property, Role } from '../types'
+import type { AssignableRole, Profile, Property } from '../types'
+import { Trash2 } from 'lucide-react'
 
-const ROLE_LABELS: Record<Role, string> = {
+// 'dev' is deliberately excluded — there's no app UI path to grant it,
+// and the dev profile is itself filtered out of this list below.
+const ROLE_LABELS: Record<AssignableRole, string> = {
   admin: 'Admin',
   project_manager: 'Project Manager',
   viewer: 'Viewer',
@@ -14,7 +17,7 @@ const selectClass =
   'h-10 rounded-lg border border-gray-300 bg-white px-2.5 text-sm text-gray-900 focus:border-transparent focus:ring-4 focus:ring-yellow-100 focus:outline-none disabled:opacity-50'
 
 export function Admin() {
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, isDev } = useAuth()
 
   const [users, setUsers] = useState<Profile[]>([])
   const [usersLoading, setUsersLoading] = useState(true)
@@ -71,7 +74,7 @@ export function Admin() {
 
   if (!isAdmin) return <Navigate to="/" replace />
 
-  async function handleRoleChange(userId: string, nextRole: Role) {
+  async function handleRoleChange(userId: string, nextRole: AssignableRole) {
     if (userId === profile?.id && nextRole !== 'admin') {
       const ok = window.confirm('This will remove your own admin access. Continue?')
       if (!ok) return
@@ -84,6 +87,36 @@ export function Admin() {
       setUsersError(error.message)
     } else {
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role: nextRole } : u)))
+    }
+    setSavingUserId(null)
+  }
+
+  // Dev-only: removes the profiles row outright (distinct from a role
+  // change or access revoke above). Their auth login still exists —
+  // they just have no profile to load. In practice this only succeeds
+  // for a profile with no history: anyone who's created a property,
+  // entry, or scope item, or been assigned/checked something, is
+  // referenced by a foreign key with no ON DELETE rule, so the delete
+  // fails with that Postgres error surfaced below rather than silently.
+  async function handleDeleteUser(user: Profile) {
+    const ok = window.confirm(
+      `Delete ${user.display_name}'s profile? This cannot be undone. Their login will still exist, but they won't be able to use the app.`
+    )
+    if (!ok) return
+
+    setSavingUserId(user.id)
+    setUsersError(null)
+    const { data: deletedRows, error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', user.id)
+      .select('id')
+    if (error) {
+      setUsersError(error.message)
+    } else if (!deletedRows || deletedRows.length === 0) {
+      setUsersError('Nothing was deleted — you may not have permission to delete this profile.')
+    } else {
+      setUsers((prev) => prev.filter((u) => u.id !== user.id))
     }
     setSavingUserId(null)
   }
@@ -130,6 +163,10 @@ export function Admin() {
   }
 
   const selectedProperty = properties.find((p) => p.id === propertyId) ?? null
+  // The dev profile is invisible everywhere in the UI, including here —
+  // RLS already hides it from other viewers, this also covers dev's own
+  // session looking at their own Admin page.
+  const visibleUsers = users.filter((u) => u.role !== 'dev')
 
   return (
     <div>
@@ -145,31 +182,44 @@ export function Admin() {
 
         {usersLoading ? (
           <p className="text-sm text-gray-500">Loading users…</p>
-        ) : users.length === 0 ? (
+        ) : visibleUsers.length === 0 ? (
           <p className="text-sm text-gray-500">No users found.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {users.map((u) => (
+            {visibleUsers.map((u) => (
               <div
                 key={u.id}
                 className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2.5"
               >
-                <span className="text-sm font-medium text-gray-800">
+                <span className="min-w-0 truncate text-sm font-medium text-gray-800">
                   {u.display_name}
                   {u.id === profile?.id && <span className="font-normal text-gray-400"> (you)</span>}
                 </span>
-                <select
-                  value={u.role}
-                  disabled={savingUserId === u.id}
-                  onChange={(e) => handleRoleChange(u.id, e.target.value as Role)}
-                  className={selectClass}
-                >
-                  {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-shrink-0 items-center gap-1.5">
+                  <select
+                    value={u.role}
+                    disabled={savingUserId === u.id}
+                    onChange={(e) => handleRoleChange(u.id, e.target.value as AssignableRole)}
+                    className={selectClass}
+                  >
+                    {(Object.keys(ROLE_LABELS) as AssignableRole[]).map((r) => (
+                      <option key={r} value={r}>
+                        {ROLE_LABELS[r]}
+                      </option>
+                    ))}
+                  </select>
+                  {isDev && (
+                    <button
+                      type="button"
+                      className="rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                      onClick={() => handleDeleteUser(u)}
+                      disabled={savingUserId === u.id}
+                      aria-label={`Delete ${u.display_name}`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

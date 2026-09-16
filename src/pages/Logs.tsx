@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { formatActivityLogLine } from '../lib/formatActivityLog'
 import type { ActivityAction, ActivityLog, Profile, Property, ScopeItem } from '../types'
+import { Trash2 } from 'lucide-react'
 
 const ACTION_LABELS: Record<ActivityAction, string> = {
   item_checked: 'Checked off',
@@ -21,7 +22,7 @@ const selectClass =
 const LOG_LIMIT = 300
 
 export function Logs() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isDev } = useAuth()
 
   const [properties, setProperties] = useState<Property[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -29,6 +30,7 @@ export function Logs() {
   const [logs, setLogs] = useState<ActivityLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deletingLogId, setDeletingLogId] = useState<string | null>(null)
 
   const [propertyFilter, setPropertyFilter] = useState('all')
   const [actorFilter, setActorFilter] = useState('all')
@@ -79,6 +81,27 @@ export function Logs() {
       mounted = false
     }
   }, [isAdmin, propertyFilter, actorFilter, actionFilter])
+
+  // Dev-only: nothing else can delete an activity_logs row. No
+  // soft-delete/undo — this removes the row outright.
+  async function handleDeleteLog(log: ActivityLog) {
+    if (!window.confirm('Delete this log entry? This cannot be undone.')) return
+    setDeletingLogId(log.id)
+    setError(null)
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from('activity_logs')
+      .delete()
+      .eq('id', log.id)
+      .select('id')
+    if (deleteError) {
+      setError(deleteError.message)
+    } else if (!deletedRows || deletedRows.length === 0) {
+      setError('Nothing was deleted — you may not have permission to delete this log entry.')
+    } else {
+      setLogs((prev) => prev.filter((l) => l.id !== log.id))
+    }
+    setDeletingLogId(null)
+  }
 
   const profilesById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles])
   const propertiesById = useMemo(() => new Map(properties.map((p) => [p.id, p])), [properties])
@@ -143,9 +166,20 @@ export function Logs() {
           {logs.map((log) => (
             <div
               key={log.id}
-              className="rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]"
+              className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-white p-3 text-sm text-gray-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]"
             >
-              {formatActivityLogLine(log, { profilesById, propertiesById, itemsById })}
+              <span className="min-w-0">{formatActivityLogLine(log, { profilesById, propertiesById, itemsById })}</span>
+              {isDev && (
+                <button
+                  type="button"
+                  className="flex-shrink-0 rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                  onClick={() => handleDeleteLog(log)}
+                  disabled={deletingLogId === log.id}
+                  aria-label="Delete log entry"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
           ))}
         </div>

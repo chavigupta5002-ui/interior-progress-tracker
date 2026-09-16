@@ -1,4 +1,13 @@
-export type Role = 'admin' | 'project_manager' | 'viewer'
+// 'dev' is a hidden role — a superset of admin's access plus a couple
+// of dev-exclusive capabilities (see AuthContext's isDev and
+// 015_dev_role.sql) — invisible everywhere else in the UI. There is
+// deliberately no app UI path to grant it; see AssignableRole below.
+export type Role = 'admin' | 'project_manager' | 'viewer' | 'dev'
+
+// The roles an admin can actually assign someone via the app's UI
+// (Admin.tsx's role dropdown) — excludes 'dev', which is only ever set
+// by direct SQL.
+export type AssignableRole = Exclude<Role, 'dev'>
 
 export interface Profile {
   id: string
