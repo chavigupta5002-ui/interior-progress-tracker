@@ -7,7 +7,7 @@ import { useManagerProfiles } from '../hooks/useManagerProfiles'
 import { buildItemIndex, getTopLevelAncestor } from '../lib/scopeProgress'
 import { toggleScopeItemChecked } from '../lib/scopeActions'
 import type { Property, ScopeItem, ScopeItemAssignment } from '../types'
-import { ChevronRight } from 'lucide-react'
+import { Check, ChevronRight } from 'lucide-react'
 
 const DONE_COLOR = '#059669' // emerald-600
 const PENDING_COLOR = '#e5e7eb' // gray-200
@@ -24,13 +24,16 @@ interface PropertyGroup {
   headerGroups: HeaderGroup[]
 }
 
-function buildPendingGroups(
-  pendingItems: ScopeItem[],
+// Groups a list of scope items by Property, then by top-level Task —
+// used for both the Pending view (unchecked only) and the Assigned view
+// (every currently-assigned item, checked or not).
+function buildItemGroups(
+  items: ScopeItem[],
   itemsById: Map<string, ScopeItem>,
   propertyById: Map<string, Property>
 ): PropertyGroup[] {
   const byProperty = new Map<string, ScopeItem[]>()
-  for (const item of pendingItems) {
+  for (const item of items) {
     const list = byProperty.get(item.property_id) ?? []
     list.push(item)
     byProperty.set(item.property_id, list)
@@ -63,6 +66,7 @@ export function Kpi() {
 
   const [selectedProfileId, setSelectedProfileId] = useState('')
   const [propertyFilter, setPropertyFilter] = useState('all')
+  const [view, setView] = useState<'pending' | 'assigned'>('pending')
 
   const [assignments, setAssignments] = useState<ScopeItemAssignment[]>([])
   const [scopeItems, setScopeItems] = useState<ScopeItem[]>([])
@@ -157,8 +161,12 @@ export function Kpi() {
   const pendingItems = assignedItems.filter((i) => !i.checked_at)
 
   const pendingGroups = useMemo(
-    () => buildPendingGroups(pendingItems, itemsById, propertyById),
+    () => buildItemGroups(pendingItems, itemsById, propertyById),
     [pendingItems, itemsById, propertyById]
+  )
+  const assignedGroups = useMemo(
+    () => buildItemGroups(assignedItems, itemsById, propertyById),
+    [assignedItems, itemsById, propertyById]
   )
 
   async function handleToggleItem(item: ScopeItem) {
@@ -259,55 +267,91 @@ export function Kpi() {
           </div>
 
           <section>
-            <h2 className="mb-3 text-lg font-semibold text-gray-800">Work still pending</h2>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-gray-800">
+                {view === 'pending' ? 'Work still pending' : 'Assigned work'}
+              </h2>
+              <div className="inline-flex flex-shrink-0 rounded-full bg-gray-100 p-1">
+                {(['pending', 'assigned'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                      view === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                    onClick={() => setView(v)}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-            {pendingItems.length === 0 ? (
-              <p className="text-sm text-gray-500">Nothing pending — all caught up.</p>
+            {(view === 'pending' ? pendingItems : assignedItems).length === 0 ? (
+              <p className="text-sm text-gray-500">
+                {view === 'pending' ? 'Nothing pending — all caught up.' : 'No scope points assigned.'}
+              </p>
             ) : (
               <div className="flex flex-col gap-4">
-                {pendingGroups.map((group) => (
+                {(view === 'pending' ? pendingGroups : assignedGroups).map((group) => (
                   <div key={group.propertyId}>
                     {propertyFilter === 'all' && (
                       <h3 className="mb-2 text-sm font-semibold text-gray-700">{group.propertyName}</h3>
                     )}
                     <div className="flex flex-col gap-2">
-                      {group.headerGroups.map((header) => (
-                        <details
-                          key={header.taskId}
-                          className="group rounded-lg border border-gray-100 bg-white p-3"
-                        >
-                          <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <ChevronRight
-                                className="text-gray-400 transition-transform group-open:rotate-90"
-                                size={14}
-                              />
-                              <span className="text-sm font-semibold text-gray-900">{header.taskTitle}</span>
+                      {group.headerGroups.map((header) => {
+                        const doneCount = header.items.filter((i) => i.checked_at).length
+                        return (
+                          <details
+                            key={header.taskId}
+                            className="group rounded-lg border border-gray-100 bg-white p-3"
+                          >
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <ChevronRight
+                                  className="text-gray-400 transition-transform group-open:rotate-90"
+                                  size={14}
+                                />
+                                <span className="text-sm font-semibold text-gray-900">{header.taskTitle}</span>
+                              </div>
+                              <span className="text-[11px] font-medium text-gray-500">
+                                {view === 'pending'
+                                  ? `${header.items.length} pending`
+                                  : `${doneCount} of ${header.items.length} done`}
+                              </span>
+                            </summary>
+                            <div className="mt-2 flex flex-col gap-0.5 pl-6">
+                              {header.items.map((item) =>
+                                item.checked_at ? (
+                                  <div key={item.id} className="flex items-center gap-3 rounded-lg p-1.5">
+                                    <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-emerald-600">
+                                      <Check className="text-white" size={12} strokeWidth={3} />
+                                    </span>
+                                    <span className="text-sm font-medium text-gray-600 line-through">
+                                      {item.title}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <label
+                                    key={item.id}
+                                    className="flex cursor-pointer items-center gap-3 rounded-lg p-1.5 hover:bg-gray-50"
+                                  >
+                                    <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-200 bg-white">
+                                      <input
+                                        type="checkbox"
+                                        className="sr-only"
+                                        checked={false}
+                                        onChange={() => handleToggleItem(item)}
+                                      />
+                                    </span>
+                                    <span className="text-sm font-medium text-gray-900">{item.title}</span>
+                                  </label>
+                                )
+                              )}
                             </div>
-                            <span className="text-[11px] font-medium text-gray-500">
-                              {header.items.length} pending
-                            </span>
-                          </summary>
-                          <div className="mt-2 flex flex-col gap-0.5 pl-6">
-                            {header.items.map((item) => (
-                              <label
-                                key={item.id}
-                                className="flex cursor-pointer items-center gap-3 rounded-lg p-1.5 hover:bg-gray-50"
-                              >
-                                <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-gray-200 bg-white">
-                                  <input
-                                    type="checkbox"
-                                    className="sr-only"
-                                    checked={false}
-                                    onChange={() => handleToggleItem(item)}
-                                  />
-                                </span>
-                                <span className="text-sm font-medium text-gray-900">{item.title}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </details>
-                      ))}
+                          </details>
+                        )
+                      })}
                     </div>
                   </div>
                 ))}
